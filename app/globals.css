@@ -1,26 +1,205 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ─────────────────────────────────────────────────────────────
+   Design tokens — light / bright beauty-tech theme
+   Tailwind v4 CSS-first: @theme values compile to utilities
+   (bg-canvas, text-ink, border-line, bg-brand, rounded-xl, …)
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  /* Surfaces */
+  --color-canvas: #fbf8f6;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f4efec;
+
+  /* Ink / text */
+  --color-ink: #1a1613;
+  --color-ink-soft: #6b615b;
+  --color-ink-faint: #9a8f88;
+
+  /* Lines */
+  --color-line: #ece4de;
+  --color-line-strong: #dcd1c9;
+
+  /* Brand */
+  --color-brand: #f4623a;
+  --color-brand-strong: #e14e2a;
+  --color-brand-soft: #fff1ec;
+  --color-brand-ink: #7a2c17;
+
+  /* Gradient stops (hero CTA) */
+  --color-grad-1: #fbbf24; /* amber-400 */
+  --color-grad-2: #fb923c; /* orange-400 */
+  --color-grad-3: #f43f5e; /* rose-500 */
+
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-success-soft: #e9f7ee;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fdecec;
+  --color-warn: #d97706;
+  --color-warn-soft: #fdf3e7;
+
+  /* Radii */
+  --radius-sm: 0.625rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2rem;
+
+  /* Shadows — soft, warm-tinted, layered */
+  --shadow-card: 0 1px 2px rgba(26, 22, 19, 0.04), 0 8px 24px rgba(26, 22, 19, 0.06);
+  --shadow-pop: 0 4px 12px rgba(26, 22, 19, 0.08), 0 16px 48px rgba(26, 22, 19, 0.12);
+  --shadow-brand: 0 8px 24px rgba(244, 98, 58, 0.28);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Base resets ─────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Safe-area helpers (mobile notch / home indicator) ───── */
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+.bottom-safe {
+  bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-faint);
+}
+/* Hide scrollbars on horizontal chip/scroll rows */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Selection ───────────────────────────────────────────── */
+::selection {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+
+/* ── Focus visible ───────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Animations
+   ───────────────────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scale-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-overlay-in {
+  animation: overlay-in 0.2s ease-out forwards;
+}
+
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-sunken);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.65),
+    transparent
+  );
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-toast-in {
+  animation: toast-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ── Reduced motion ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

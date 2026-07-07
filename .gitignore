@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# supabase local dev — Docker volumes, service configs (migrations are kept)
+.supabase/
+supabase/.branches/
+supabase/.temp/
