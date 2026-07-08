@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { requireCostsAccess } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest) {
+  const admin = await requireCostsAccess();
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") || "generations";
@@ -40,10 +44,11 @@ export async function GET(request: NextRequest) {
         },
       });
     } else {
-      // Default: generations
+      // Default: generations — explicit columns, not `*`, to avoid pulling
+      // the (unused-going-forward) result_image_base64 column into every row.
       const { data: generations, error } = await supabaseAdmin
         .from("generations")
-        .select("*, user:users(phone, name)")
+        .select("id, status, model, duration_ms, error_log, created_at, completed_at, user:users(phone, name)")
         .order("created_at", { ascending: false });
 
       if (error) {

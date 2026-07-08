@@ -9,14 +9,37 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { grantCredits } from "@/lib/funnel";
 import { getGuestFreeGenerations } from "@/lib/settings";
+import { getClientIp, checkSessionRateLimit } from "@/lib/rate-limit";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+
+// Body is optional in practice (a bare POST with no body is valid — the
+// fingerprint just won't be captured), so this is validated directly with
+// safeParse against `{}` rather than lib/validate's parseJsonBody, which
+// treats an empty/malformed body as a hard 400.
+const bodySchema = z.object({ fingerprint: z.string().max(500).optional() });
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const fingerprint = (body?.fingerprint as string) ?? "unknown";
+    const ipRaw = getClientIp(request);
+
+    const allowed = await checkSessionRateLimit(ipRaw);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again shortly." },
+        { status: 429 }
+      );
+    }
+
+    const rawBody = await request.json().catch(() => ({}));
+    const parsed = bodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    }
+    const fingerprint = parsed.data.fingerprint ?? "unknown";
 
     // Hash the fingerprint (SHA-256 via Web Crypto — available in Edge/Node)
     const encoder = new TextEncoder();
@@ -29,10 +52,6 @@ export async function POST(request: NextRequest) {
       .join("");
 
     // Hash IP for secondary guest signal
-    const ipRaw =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      request.headers.get("x-real-ip") ??
-      "unknown";
     const ipHashBuffer = await crypto.subtle.digest(
       "SHA-256",
       encoder.encode(ipRaw)
@@ -62,6 +81,7 @@ export async function POST(request: NextRequest) {
     // Grant guest free credits
     const guestCredits = await getGuestFreeGenerations();
     await grantCredits(session.id, null, "guest_free", guestCredits);
+    await recordAnalyticsEvent("session_created", { creditsGranted: guestCredits }, session.id, null);
 
     return NextResponse.json(
       {

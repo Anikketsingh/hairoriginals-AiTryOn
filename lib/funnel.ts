@@ -9,6 +9,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getLoginGateMessage, getAgentGateMessage } from "@/lib/settings";
+import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import type { FunnelStage, SessionStatus } from "@/lib/types";
 
 // ──────────────────────────────────────────────────────────────
@@ -81,10 +82,12 @@ export async function getFunnelStage(
   sessionId: string | null,
   userId: string | null
 ): Promise<FunnelStage> {
+  // Signed-in users have unlimited try-ons — they never hit the stage-3 agent
+  // gate. Their CRM lead + agent routing is created at sign-in instead (see
+  // lib/leads.ts + app/api/auth/complete). Guests still get the 1 free try-on
+  // then the stage-1 login gate.
+  if (userId) return 2;
   const { remaining } = await getCreditBalance(sessionId, userId);
-  if (userId) {
-    return remaining > 0 ? 2 : 3;
-  }
   return remaining > 0 ? 0 : 1;
 }
 
@@ -116,6 +119,13 @@ export async function grantCredits(
     console.error("[funnel] grantCredits error:", error?.message);
     return null;
   }
+
+  await dispatchIntegrationEvent(
+    "credit.granted",
+    { sessionId, userId, source, amount, grantedBy: grantedBy ?? null },
+    "crm"
+  );
+
   return data.id as string;
 }
 

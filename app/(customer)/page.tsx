@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Images } from "lucide-react";
 import Link from "next/link";
 import TopBar from "@/components/flow/TopBar";
@@ -13,7 +13,7 @@ import ResultStep from "@/components/flow/ResultStep";
 import FunnelGate from "@/components/FunnelGate";
 import { useToast } from "@/components/ui/Toast";
 import { useSession } from "@/hooks/useSession";
-import type { UploadedImage, GenerateResponse } from "@/lib/types";
+import type { UploadedImage, GenerateResponse, Product } from "@/lib/types";
 
 type Step = "home" | "photo" | "style" | "result";
 const STEP_TO_HASH: Record<Step, string> = { home: "", photo: "#photo", style: "#style", result: "#result" };
@@ -23,8 +23,11 @@ export default function HomePage() {
   const [step, setStep] = useState<Step>("home");
   const [personImage, setPersonImage] = useState<UploadedImage | undefined>();
   const [productImage, setProductImage] = useState<UploadedImage | undefined>();
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [result, setResult] = useState<GenerateResponse | null>(null);
+  const [generationId, setGenerationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const cancelledRef = useRef(false);
 
   const { sessionToken, refreshStatus } = useSession();
   const [gateStage, setGateStage] = useState<1 | 3 | null>(null);
@@ -51,23 +54,27 @@ export default function HomePage() {
   }, []);
 
   const pollJobStatus = useCallback(
-    async (jobId: string) => {
+    async (jobId: string, token: string) => {
       const POLL_INTERVAL_MS = 1500;
       const MAX_ATTEMPTS = 60;
       let attempts = 0;
 
       while (attempts < MAX_ATTEMPTS) {
+        if (cancelledRef.current) return;
         attempts++;
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        if (cancelledRef.current) return;
         try {
-          const res = await fetch(`/api/generate/status/${jobId}`);
+          const res = await fetch(
+            `/api/generate/status/${jobId}?sessionToken=${encodeURIComponent(token)}`
+          );
           if (!res.ok) continue;
           const data = await res.json();
           if (data.status === "completed") {
-            if (!data.resultImageBase64 || !data.resultMimeType) {
+            if (!data.resultUrl || !data.resultMimeType) {
               throw new Error("Job completed but result image payload is missing.");
             }
-            setResult({ imageBase64: data.resultImageBase64, mimeType: data.resultMimeType });
+            setResult({ imageUrl: data.resultUrl, mimeType: data.resultMimeType });
             await refreshStatus();
             return;
           } else if (data.status === "failed") {
@@ -88,6 +95,8 @@ export default function HomePage() {
 
     setLoading(true);
     setResult(null);
+    setGenerationId(null);
+    cancelledRef.current = false;
 
     try {
       const formData = new FormData();
@@ -113,7 +122,9 @@ export default function HomePage() {
       if (!response.ok) throw new Error(data.error ?? "We couldn't create your look. Please try again.");
 
       if (data.jobId) {
-        await pollJobStatus(data.jobId);
+        setGenerationId(data.jobId);
+        await pollJobStatus(data.jobId, sessionToken ?? "");
+        if (cancelledRef.current) return;
         setStep("result");
       } else {
         setResult(data as GenerateResponse);
@@ -128,9 +139,21 @@ export default function HomePage() {
     }
   }, [personImage, productImage, sessionToken, refreshStatus, pollJobStatus, toast]);
 
+  const handleStyleSelect = useCallback((img: UploadedImage | undefined, product?: Product) => {
+    setProductImage(img);
+    setSelectedProduct(product ?? null);
+  }, []);
+
+  const handleCancelGenerate = useCallback(() => {
+    cancelledRef.current = true;
+    setLoading(false);
+    setStep("style");
+  }, []);
+
   const handleTryAnother = useCallback(() => {
     setResult(null);
     setProductImage(undefined);
+    setSelectedProduct(null);
     setStep("style");
   }, []);
 
@@ -138,6 +161,7 @@ export default function HomePage() {
     setResult(null);
     setPersonImage(undefined);
     setProductImage(undefined);
+    setSelectedProduct(null);
     setStep("home");
   }, []);
 
@@ -178,19 +202,30 @@ export default function HomePage() {
         {step === "home" && <HomeStep onStart={() => setStep("photo")} />}
 
         {step === "photo" && (
-          <PhotoStep personImage={personImage} onSelect={setPersonImage} onContinue={() => setStep("style")} />
+          <PhotoStep
+            personImage={personImage}
+            sessionToken={sessionToken}
+            onSelect={setPersonImage}
+            onContinue={() => setStep("style")}
+          />
         )}
 
         {step === "style" && (
-          <StyleStep productImage={productImage} onSelect={setProductImage} onTryOn={handleGenerate} />
+          <StyleStep
+            productImage={productImage}
+            sessionToken={sessionToken}
+            onSelect={handleStyleSelect}
+            onTryOn={handleGenerate}
+          />
         )}
 
         {step === "result" && result && (
           <ResultStep
-            imageBase64={result.imageBase64}
+            imageUrl={result.imageUrl}
             mimeType={result.mimeType}
             personImage={personImage?.dataUrl}
-            productId={productImage?.productId}
+            product={selectedProduct}
+            generationId={generationId}
             sessionToken={sessionToken}
             onTryAnother={handleTryAnother}
             onStartOver={handleStartOver}
@@ -202,7 +237,11 @@ export default function HomePage() {
 
       {/* Loading takes over the screen */}
       {loading && (
-        <GeneratingStep personImage={personImage?.dataUrl} productImage={productImage?.dataUrl} />
+        <GeneratingStep
+          personImage={personImage?.dataUrl}
+          productImage={productImage?.dataUrl}
+          onCancel={handleCancelGenerate}
+        />
       )}
 
       {/* Funnel gate */}

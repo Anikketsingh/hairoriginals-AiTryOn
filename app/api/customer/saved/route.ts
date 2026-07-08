@@ -5,8 +5,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSessionByToken } from "@/lib/funnel";
+import { parseJsonBody } from "@/lib/validate";
+
+const savedBodySchema = z.object({
+  sessionToken: z.string().min(1, "Missing sessionToken."),
+  productId: z.string().uuid("productId must be a valid product ID."),
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,12 +50,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { sessionToken, productId } = body;
-
-    if (!sessionToken || !productId) {
-      return NextResponse.json({ error: "Missing sessionToken or productId." }, { status: 400 });
-    }
+    const parsed = await parseJsonBody(request, savedBodySchema);
+    if (parsed.error) return parsed.error;
+    const { sessionToken, productId } = parsed.data;
 
     const session = await getSessionByToken(sessionToken);
     if (!session) return NextResponse.json({ error: "Session not found." }, { status: 404 });

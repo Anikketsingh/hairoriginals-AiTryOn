@@ -5,7 +5,7 @@ import { ChevronsLeftRight } from "lucide-react";
 
 interface BeforeAfterSliderProps {
   beforeImage: string; // Data URL or URL of original photo
-  afterImage: string;  // Base64 or Data URL of AI result
+  afterImage: string;  // Data URL, https URL, or raw base64 of the AI result
   mimeType?: string;
 }
 
@@ -19,9 +19,10 @@ export default function BeforeAfterSlider({
   const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const afterSrc = afterImage.startsWith("data:")
-    ? afterImage
-    : `data:${mimeType};base64,${afterImage}`;
+  const afterSrc =
+    afterImage.startsWith("data:") || afterImage.startsWith("http")
+      ? afterImage
+      : `data:${mimeType};base64,${afterImage}`;
 
   // Use ResizeObserver to keep the clipped image exactly aligned with the container width
   useEffect(() => {

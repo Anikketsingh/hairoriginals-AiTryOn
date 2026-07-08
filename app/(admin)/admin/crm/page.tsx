@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { UserCheck, Phone, MessageSquare, PlusCircle, CheckCircle, Loader2, Clock, ShieldAlert } from "lucide-react";
+import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -20,33 +20,92 @@ interface Lead {
   }[];
 }
 
+interface LeadLook {
+  id: string;
+  result_url: string | null;
+  result_mime_type: string | null;
+  created_at: string;
+  products: { id: string; name: string; image_url: string; price: number | null } | null;
+}
+
+interface InterestedProduct {
+  id: string;
+  name: string;
+  image_url: string;
+  price: number | null;
+  selling_price?: number | null;
+  saved?: boolean;
+}
+
+interface LeadDetail {
+  looks: LeadLook[];
+  interestedProducts: InterestedProduct[];
+}
+
 export default function SalesCRMPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const [search, setSearch] = useState("");
+  const [detail, setDetail] = useState<LeadDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [newStatus, setNewStatus] = useState("contacted");
   const [creditCount, setCreditCount] = useState(2);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchLeads = useCallback(async () => {
+  const fetchLeads = useCallback(async (q?: string) => {
     try {
-      const res = await fetch("/api/admin/leads");
+      const url = q ? `/api/admin/leads?q=${encodeURIComponent(q)}` : "/api/admin/leads";
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setLeads(data);
-        if (data.length > 0 && !activeLead) setActiveLead(data[0]);
+        setActiveLead((prev) => prev ?? (data.length > 0 ? data[0] : null));
       }
     } catch (err) {
       console.error("Failed to fetch leads:", err);
     } finally {
       setLoading(false);
     }
-  }, [activeLead]);
+  }, []);
 
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+  // Debounced agent search by phone / CRM lead id.
+  useEffect(() => {
+    const t = setTimeout(() => fetchLeads(search.trim() || undefined), 300);
+    return () => clearTimeout(t);
+  }, [search, fetchLeads]);
+
+  // Load the selected customer's looks + interested products.
+  const activeLeadId = activeLead?.id ?? null;
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!activeLeadId) {
+        if (!cancelled) setDetail(null);
+        return;
+      }
+      setDetailLoading(true);
+      try {
+        const res = await fetch(`/api/admin/leads/${activeLeadId}`);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setDetail({ looks: data.looks ?? [], interestedProducts: data.interestedProducts ?? [] });
+        }
+      } catch (err) {
+        console.error("Failed to load lead detail:", err);
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeLeadId]);
 
   const handleRecordAction = useCallback(
     async (actionType: "note" | "call" | "credit_grant" | "status_change") => {
@@ -98,6 +157,18 @@ export default function SalesCRMPage() {
         <div className="lg:col-span-1 rounded-2xl bg-white/[0.03] border border-white/8 p-4 flex flex-col gap-3 max-h-[700px] overflow-y-auto">
           <div className="flex items-center justify-between pb-2 border-b border-white/8">
             <span className="text-xs font-bold text-white uppercase tracking-wider">Active Leads ({leads.length})</span>
+          </div>
+          {/* Agent search */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by phone or CRM id…"
+              aria-label="Search leads"
+              className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-xs text-white placeholder:text-white/30 focus:border-amber-400/50 focus:outline-none"
+            />
           </div>
           {leads.length === 0 ? (
             <p className="text-xs text-white/30 py-8 text-center">No leads created yet.</p>
@@ -219,6 +290,68 @@ export default function SalesCRMPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Looks this customer created */}
+              <div className="flex flex-col gap-3 pt-2">
+                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Looks created
+                  {detail && <span className="text-white/40 normal-case font-medium">({detail.looks.length})</span>}
+                </span>
+                {detailLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-white/40 py-3">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading looks…
+                  </div>
+                ) : detail && detail.looks.length > 0 ? (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {detail.looks.map((look) => (
+                      <div key={look.id} className="shrink-0">
+                        <div className="h-28 w-24 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                          {look.result_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={look.result_url} alt="Customer try-on look" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-[10px] text-white/30">no image</div>
+                          )}
+                        </div>
+                        <p className="mt-1 w-24 truncate text-[10px] text-white/40">{look.products?.name || "Custom look"}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-white/30 py-3">No looks generated yet.</p>
+                )}
+              </div>
+
+              {/* Products this customer is interested in */}
+              <div className="flex flex-col gap-3">
+                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5 text-amber-400" /> Interested products
+                  {detail && <span className="text-white/40 normal-case font-medium">({detail.interestedProducts.length})</span>}
+                </span>
+                {!detailLoading && detail && detail.interestedProducts.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {detail.interestedProducts.map((p) => (
+                      <div key={p.id} className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/5 p-2.5">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-white">{p.name}</p>
+                          <p className="text-[11px] text-white/50">
+                            ₹{((p.selling_price ?? p.price) ?? 0).toLocaleString()}
+                          </p>
+                        </div>
+                        {p.saved && (
+                          <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300">Saved</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : !detailLoading ? (
+                  <p className="text-xs text-white/30 py-3">No product interest recorded yet.</p>
+                ) : null}
               </div>
 
               {/* Activity Timeline */}

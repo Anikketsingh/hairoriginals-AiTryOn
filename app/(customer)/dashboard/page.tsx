@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Download, Share2, Sparkles, Zap, Phone, ArrowRight, Bookmark } from "lucide-react";
+import { Download, Share2, Sparkles, Zap, Phone, ArrowRight, Bookmark, Heart } from "lucide-react";
 import TopBar from "@/components/flow/TopBar";
 import BottomNav from "@/components/BottomNav";
 import Button from "@/components/ui/Button";
@@ -13,8 +13,9 @@ import { useSession } from "@/hooks/useSession";
 interface GenerationHistoryItem {
   id: string;
   status: string;
-  result_image_base64: string | null;
+  result_url: string | null;
   result_mime_type: string | null;
+  is_saved: boolean;
   created_at: string;
   products: { id: string; name: string; image_url: string; price: number | null } | null;
 }
@@ -58,24 +59,35 @@ export default function CustomerDashboardPage() {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  const handleDownload = (base64: string, mimeType: string, id: string) => {
-    const link = document.createElement("a");
-    link.href = `data:${mimeType};base64,${base64}`;
-    link.download = `hairoriginals-look-${id.slice(0, 8)}.jpg`;
-    link.click();
-    toast("Saved to your device", "success");
+  const handleDownload = async (url: string, mimeType: string, id: string) => {
+    // url is a cross-origin signed URL — fetch the bytes first and download
+    // a same-origin blob: URL, since browsers ignore the anchor `download`
+    // attribute for cross-origin hrefs.
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `hairoriginals-look-${id.slice(0, 8)}.${mimeType.split("/")[1] ?? "jpg"}`;
+      link.click();
+      URL.revokeObjectURL(blobUrl);
+      toast("Saved to your device", "success");
+    } catch {
+      toast("Couldn't download right now.", "error");
+    }
   };
 
-  const handleShare = async (base64: string, mimeType: string) => {
+  const handleShare = async (url: string, mimeType: string) => {
     try {
-      const res = await fetch(`data:${mimeType};base64,${base64}`);
+      const res = await fetch(url);
       const blob = await res.blob();
       const file = new File([blob], `hairoriginals-look.${mimeType.split("/")[1] ?? "png"}`, { type: mimeType });
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: "My HairOriginals look" });
         return;
       }
-      handleDownload(base64, mimeType, "share");
+      handleDownload(url, mimeType, "share");
     } catch (err) {
       if ((err as Error).name !== "AbortError") toast("Couldn't share right now", "error");
     }
@@ -94,7 +106,9 @@ export default function CustomerDashboardPage() {
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-sm font-bold text-ink shadow-[var(--shadow-card)]">
               <Zap className="h-4 w-4 text-brand" />
-              {creditsRemaining} {creditsRemaining === 1 ? "try-on" : "try-ons"} left
+              {sessionStatus?.userId
+                ? "Unlimited try-ons"
+                : `${creditsRemaining} ${creditsRemaining === 1 ? "try-on" : "try-ons"} left`}
             </span>
             {sessionStatus?.userId && (
               <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-semibold text-success">
@@ -151,10 +165,10 @@ export default function CustomerDashboardPage() {
                   className="flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface shadow-[var(--shadow-card)]"
                 >
                   <div className="relative aspect-square w-full overflow-hidden bg-surface-sunken">
-                    {item.result_image_base64 && item.result_mime_type ? (
+                    {item.result_url && item.result_mime_type ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={`data:${item.result_mime_type};base64,${item.result_image_base64}`}
+                        src={item.result_url}
                         alt="AI try-on result"
                         className="h-full w-full object-cover"
                       />
@@ -164,22 +178,30 @@ export default function CustomerDashboardPage() {
                     <span className="absolute left-2 top-2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-ink backdrop-blur-md">
                       {new Date(item.created_at).toLocaleDateString()}
                     </span>
+                    {item.is_saved && (
+                      <span
+                        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/85 text-brand backdrop-blur-md"
+                        aria-label="Saved look"
+                      >
+                        <Heart className="h-3.5 w-3.5 fill-brand" aria-hidden="true" />
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2 p-2.5">
                     <span className="line-clamp-1 text-[13px] font-semibold text-ink">
                       {item.products?.name || "Custom look"}
                     </span>
-                    {item.result_image_base64 && item.result_mime_type && (
+                    {item.result_url && item.result_mime_type && (
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleShare(item.result_image_base64!, item.result_mime_type!)}
+                          onClick={() => handleShare(item.result_url!, item.result_mime_type!)}
                           aria-label="Share look"
                           className="flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-line bg-surface py-2 text-xs font-semibold text-ink-soft transition hover:bg-surface-sunken active:scale-95"
                         >
                           <Share2 className="h-3.5 w-3.5" /> Share
                         </button>
                         <button
-                          onClick={() => handleDownload(item.result_image_base64!, item.result_mime_type!, item.id)}
+                          onClick={() => handleDownload(item.result_url!, item.result_mime_type!, item.id)}
                           aria-label="Download look"
                           className="flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-line bg-surface py-2 text-xs font-semibold text-ink-soft transition hover:bg-surface-sunken active:scale-95"
                         >

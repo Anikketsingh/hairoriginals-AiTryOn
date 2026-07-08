@@ -5,9 +5,20 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin-auth";
+import { parseJsonBody } from "@/lib/validate";
+
+const bodySchema = z.object({
+  id: z.string().uuid("id must be a valid template ID."),
+  template: z.string().min(1, "Missing template."),
+});
 
 export async function GET() {
+  const admin = await requireAdmin(["super_admin"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const { data, error } = await supabaseAdmin
       .from("prompt_templates")
@@ -26,13 +37,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { id, template } = body;
+  const admin = await requireAdmin(["super_admin"]);
+  if (admin instanceof NextResponse) return admin;
 
-    if (!id || !template) {
-      return NextResponse.json({ error: "Missing id or template." }, { status: 400 });
-    }
+  try {
+    const parsed = await parseJsonBody(request, bodySchema);
+    if (parsed.error) return parsed.error;
+    const { id, template } = parsed.data;
 
     // Increment version upon update
     const { data: current } = await supabaseAdmin

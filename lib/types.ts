@@ -89,7 +89,7 @@ export interface Product {
 // ──────────────────────────────────────────────────────────────
 
 export interface GenerateResponse {
-  imageBase64: string;
+  imageUrl: string;
   mimeType: string;
 }
 

@@ -1,12 +1,26 @@
 import { GoogleGenAI } from "@google/genai";
 import { HAIR_TRYON_PROMPT } from "@/lib/prompt";
 
+// Admin → AI Configuration lets an operator type in any model string; this
+// allowlist is what actually gets used — an unrecognized value falls back
+// to DEFAULT_GEMINI_MODEL rather than being passed straight through to the
+// API (see lib/generation-queue.ts, which resolves the settings value
+// against this before calling generateTryOn).
+export const ALLOWED_GEMINI_MODELS = ["gemini-3.1-flash-image"] as const;
+export type GeminiModel = (typeof ALLOWED_GEMINI_MODELS)[number];
+export const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-3.1-flash-image";
+
+export function isAllowedGeminiModel(value: string): value is GeminiModel {
+  return (ALLOWED_GEMINI_MODELS as readonly string[]).includes(value);
+}
+
 export async function generateTryOn(
   personBase64: string,
   personMime: string,
   productBase64: string,
   productMime: string,
-  customPrompt?: string
+  customPrompt?: string,
+  model: GeminiModel = DEFAULT_GEMINI_MODEL
 ): Promise<{ imageBase64: string; mimeType: string }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -19,7 +33,7 @@ export async function generateTryOn(
   const promptText = customPrompt && customPrompt.trim() !== "" ? customPrompt : HAIR_TRYON_PROMPT;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-image",
+    model,
     contents: [
       {
         role: "user",

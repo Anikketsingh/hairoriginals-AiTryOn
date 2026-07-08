@@ -5,12 +5,21 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin-auth";
+import { parseJsonBody } from "@/lib/validate";
+
+const bodySchema = z.object({ id: z.string().uuid("Missing or invalid product id.") });
 
 export async function POST(request: NextRequest) {
+  const admin = await requireAdmin(["super_admin", "content_manager"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
-    const { id } = await request.json();
-    if (!id) return NextResponse.json({ error: "Missing product id." }, { status: 400 });
+    const parsed = await parseJsonBody(request, bodySchema);
+    if (parsed.error) return parsed.error;
+    const { id } = parsed.data;
 
     const { data: orig, error: origErr } = await supabaseAdmin.from("products").select("*").eq("id", id).single();
     if (origErr || !orig) return NextResponse.json({ error: "Original product not found." }, { status: 404 });

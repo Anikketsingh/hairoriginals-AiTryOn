@@ -5,9 +5,48 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin-auth";
+import { parseJsonBody } from "@/lib/validate";
+
+const numericField = z.union([z.number(), z.string()]).optional();
+
+const createProductBodySchema = z.object({
+  name: z.string().min(1, "name is required"),
+  slug: z.string().optional(),
+  sku: z.string().optional(),
+  category_id: z.string().uuid().optional().nullable(),
+  gender: z.string().optional(),
+  brand: z.string().optional(),
+  short_description: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  selling_price: numericField,
+  mrp: numericField,
+  discount_percentage: numericField,
+  image_url: z.string().min(1, "image_url is required"),
+  hair_type: z.string().optional().nullable(),
+  hair_length: z.string().optional().nullable(),
+  hair_density: z.string().optional().nullable(),
+  hair_color: z.string().optional().nullable(),
+  base_material: z.string().optional().nullable(),
+  installation_type: z.string().optional().nullable(),
+  recommended_for: z.string().optional().nullable(),
+  is_featured: z.boolean().optional(),
+  is_new_arrival: z.boolean().optional(),
+  is_best_seller: z.boolean().optional(),
+  is_trending: z.boolean().optional(),
+  prompt_override: z.string().optional().nullable(),
+  status: z.string().optional(),
+  ai_assets: z
+    .array(z.object({ asset_type: z.string(), url: z.string(), alt_text: z.string().optional() }))
+    .optional(),
+});
 
 export async function GET(request: NextRequest) {
+  const admin = await requireAdmin(["super_admin", "content_manager"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const { searchParams } = new URL(request.url);
     const gender = searchParams.get("gender");
@@ -40,8 +79,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const admin = await requireAdmin(["super_admin", "content_manager"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
-    const body = await request.json();
+    const parsed = await parseJsonBody(request, createProductBodySchema);
+    if (parsed.error) return parsed.error;
     const {
       name,
       slug,
@@ -69,11 +112,7 @@ export async function POST(request: NextRequest) {
       prompt_override,
       status,
       ai_assets,
-    } = body;
-
-    if (!name || !image_url) {
-      return NextResponse.json({ error: "Missing required fields: name and image_url." }, { status: 400 });
-    }
+    } = parsed.data;
 
     const productSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
 

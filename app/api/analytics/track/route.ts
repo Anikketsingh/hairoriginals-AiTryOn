@@ -5,38 +5,35 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/server";
-import { getSessionByToken, getFunnelStage } from "@/lib/funnel";
+import { z } from "zod";
+import { getSessionByToken } from "@/lib/funnel";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+import { parseJsonBody } from "@/lib/validate";
+
+const bodySchema = z.object({
+  eventName: z.string().min(1, "Missing eventName."),
+  properties: z.record(z.string(), z.unknown()).optional(),
+  sessionToken: z.string().min(1).optional().nullable(),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { eventName, properties, sessionToken } = body;
-
-    if (!eventName) {
-      return NextResponse.json({ error: "Missing eventName." }, { status: 400 });
-    }
+    const parsed = await parseJsonBody(request, bodySchema);
+    if (parsed.error) return parsed.error;
+    const { eventName, properties, sessionToken } = parsed.data;
 
     let sessionId: string | null = null;
     let userId: string | null = null;
-    let stage: number | null = null;
 
     if (sessionToken) {
       const session = await getSessionByToken(sessionToken);
       if (session) {
         sessionId = session.id;
         userId = session.user_id;
-        stage = await getFunnelStage(sessionId, userId);
       }
     }
 
-    await supabaseAdmin.from("analytics_events").insert({
-      event_name: eventName,
-      session_id: sessionId,
-      user_id: userId,
-      funnel_stage: stage,
-      properties: properties || {},
-    });
+    await recordAnalyticsEvent(eventName, properties || {}, sessionId, userId);
 
     return NextResponse.json({ success: true });
   } catch (err) {

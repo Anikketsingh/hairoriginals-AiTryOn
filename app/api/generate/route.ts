@@ -4,9 +4,16 @@ import {
   getFunnelStage,
   consumeCredit,
 } from "@/lib/funnel";
-import { getLoginGateMessage, getAgentGateMessage, getGeminiModel } from "@/lib/settings";
+import { getLoginGateMessage } from "@/lib/settings";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { processGenerationAsync } from "@/lib/generation-queue";
+import { enqueueGenerationJob } from "@/lib/jobs/runner";
+import { getClientIp, checkGenerateRateLimit } from "@/lib/rate-limit";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+
+// Headroom for the after()-scheduled background job (Gemini call + one
+// retry can take up to ~90s — see GEMINI_CALL_TIMEOUT_MS in generation-queue.ts).
+// Relevant on platforms/adapters that enforce a max invocation duration.
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,12 +74,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── Rate limit — per session once one exists, else per IP ─
+    const rateLimitKey = sessionId ?? getClientIp(request);
+    const allowed = await checkGenerateRateLimit(rateLimitKey);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please slow down and try again shortly." },
+        { status: 429 }
+      );
+    }
+
     // Resolve funnel stage
     const stage = sessionId
       ? await getFunnelStage(sessionId, userId)
       : 1;
 
     if (stage === 1) {
+      await recordAnalyticsEvent("gate_shown", { gate: "login" }, sessionId, userId);
       const message = await getLoginGateMessage();
       return NextResponse.json(
         { gate: "login", message, stage: 1 },
@@ -80,32 +98,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (stage === 3) {
-      if (sessionId) {
-        await createLeadIfNeeded(sessionId, userId);
+    // Signed-in users have unlimited try-ons: no credit is consumed and the
+    // generation is recorded with credit_id = null. Guests (stage 0) still
+    // consume one of their free credits atomically before queueing.
+    let creditId: string | null = null;
+    if (!userId) {
+      creditId = sessionId ? await consumeCredit(sessionId, userId) : null;
+      if (!creditId) {
+        const message = await getLoginGateMessage();
+        return NextResponse.json(
+          { gate: "login", message, stage: 1 },
+          { status: 402 }
+        );
       }
-      const message = await getAgentGateMessage();
-      return NextResponse.json(
-        { gate: "agent", message, stage: 3 },
-        { status: 402 }
-      );
-    }
-
-    // Stage 0 or 2 — consume one credit atomically before queueing
-    const creditId = sessionId
-      ? await consumeCredit(sessionId, userId)
-      : null;
-
-    if (!creditId) {
-      const message = await getLoginGateMessage();
-      return NextResponse.json(
-        { gate: "login", message, stage: 1 },
-        { status: 402 }
-      );
     }
 
     // ── Create initial generation record (status: pending) ────
-    const model = (await getGeminiModel()) as string;
+    // The `model` column is resolved and validated against the allowlist in
+    // lib/generation-queue.ts once the job actually runs, and written there.
     const { data: generationRow, error: insertError } = await supabaseAdmin
       .from("generations")
       .insert({
@@ -114,7 +124,6 @@ export async function POST(request: NextRequest) {
         credit_id: creditId,
         product_id: productId || null,
         status: "pending",
-        model,
       })
       .select("id")
       .single();
@@ -134,17 +143,18 @@ export async function POST(request: NextRequest) {
     const productBuffer = await productImage.arrayBuffer();
     const productBase64 = Buffer.from(productBuffer).toString("base64");
 
-    // ── Trigger async processing in background (fire-and-forget)
-    processGenerationAsync({
+    // ── Schedule background processing (survives past this response — see
+    //    lib/jobs/runner.ts for why this replaced a bare fire-and-forget call)
+    enqueueGenerationJob({
       generationId: generationRow.id,
       sessionId,
       personBase64,
       personType: personImage.type,
       productBase64,
       productType: productImage.type,
-    }).catch((err) => {
-      console.error("[/api/generate] Background processing unhandled exception:", err);
     });
+
+    await recordAnalyticsEvent("generate_started", { productId: productId || null }, sessionId, userId);
 
     // ── Return job ID immediately ──────────────────────────────
     return NextResponse.json(
@@ -159,54 +169,5 @@ export async function POST(request: NextRequest) {
       { error: `Generation submission failed: ${message}` },
       { status: 500 }
     );
-  }
-}
-
-// ── Helpers ────────────────────────────────────────────────────
-
-async function createLeadIfNeeded(
-  sessionId: string,
-  userId: string | null
-): Promise<void> {
-  try {
-    const matchFilter = userId ? { user_id: userId } : { session_id: sessionId };
-    const { data: existing } = await supabaseAdmin
-      .from("leads")
-      .select("id")
-      .match(matchFilter)
-      .limit(1);
-
-    if (existing && existing.length > 0) return;
-
-    const { data: genCount } = await supabaseAdmin
-      .from("generations")
-      .select("id", { count: "exact" })
-      .or(
-        userId
-          ? `user_id.eq.${userId},session_id.eq.${sessionId}`
-          : `session_id.eq.${sessionId}`
-      )
-      .eq("status", "completed");
-
-    let phone: string | null = null;
-    if (userId) {
-      const { data: user } = await supabaseAdmin
-        .from("users")
-        .select("phone")
-        .eq("id", userId)
-        .single();
-      phone = user?.phone ?? null;
-    }
-
-    await supabaseAdmin.from("leads").insert({
-      user_id: userId ?? null,
-      session_id: sessionId,
-      phone,
-      funnel_stage_at_creation: 3,
-      generations_count: genCount?.length ?? 0,
-      source: "agent_gate",
-    });
-  } catch (err) {
-    console.error("[generate] createLeadIfNeeded error:", err);
   }
 }

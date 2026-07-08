@@ -5,10 +5,20 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { invalidateAllSettings } from "@/lib/settings";
+import { requireAdmin } from "@/lib/admin-auth";
+import { parseJsonBody } from "@/lib/validate";
+
+const bodySchema = z.object({
+  settings: z.array(z.object({ key: z.string().min(1), value: z.unknown() })).min(1),
+});
 
 export async function GET() {
+  const admin = await requireAdmin(["super_admin"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const { data, error } = await supabaseAdmin
       .from("settings")
@@ -33,13 +43,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const updates: { key: string; value: unknown }[] = body.settings;
+  const admin = await requireAdmin(["super_admin"]);
+  if (admin instanceof NextResponse) return admin;
 
-    if (!Array.isArray(updates)) {
-      return NextResponse.json({ error: "Invalid payload format." }, { status: 400 });
-    }
+  try {
+    const parsed = await parseJsonBody(request, bodySchema);
+    if (parsed.error) return parsed.error;
+    const { settings: updates } = parsed.data;
 
     for (const item of updates) {
       await supabaseAdmin

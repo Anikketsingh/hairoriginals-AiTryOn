@@ -8,15 +8,17 @@ import Skeleton from "@/components/ui/Skeleton";
 import Sheet from "@/components/ui/Sheet";
 import { cn } from "@/components/ui/cn";
 import { fileToUploadedImage, urlToUploadedImage } from "@/lib/image";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 import { ACCEPTED_IMAGE_TYPES, type Category, type Product, type UploadedImage } from "@/lib/types";
 
 interface StyleStepProps {
   productImage?: UploadedImage;
-  onSelect: (img: UploadedImage | undefined) => void;
+  sessionToken?: string | null;
+  onSelect: (img: UploadedImage | undefined, product?: Product) => void;
   onTryOn: () => void;
 }
 
-export default function StyleStep({ productImage, onSelect, onTryOn }: StyleStepProps) {
+export default function StyleStep({ productImage, sessionToken, onSelect, onTryOn }: StyleStepProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -67,14 +69,15 @@ export default function StyleStep({ productImage, onSelect, onTryOn }: StyleStep
       setSelectingId(product.id);
       try {
         const img = await urlToUploadedImage(product.image_url, `${product.slug}.jpg`, product.id);
-        onSelect(img);
+        onSelect(img, product);
+        trackAnalyticsEvent("style_selected", { productId: product.id }, sessionToken);
       } catch (err) {
         console.error("[StyleStep] product image load failed:", err);
       } finally {
         setSelectingId(null);
       }
     },
-    [onSelect]
+    [onSelect, sessionToken]
   );
 
   const handleCustomUpload = useCallback(
@@ -82,11 +85,12 @@ export default function StyleStep({ productImage, onSelect, onTryOn }: StyleStep
       try {
         const img = await fileToUploadedImage(file);
         onSelect(img);
+        trackAnalyticsEvent("style_selected", { custom: true }, sessionToken);
       } catch (err) {
         console.error("[StyleStep] custom upload failed:", err);
       }
     },
-    [onSelect]
+    [onSelect, sessionToken]
   );
 
   const visibleCategories = categories.filter(

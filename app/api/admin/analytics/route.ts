@@ -6,8 +6,12 @@
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET() {
+  const admin = await requireAdmin(["super_admin", "content_manager"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const [sessionsRes, genRes, usersRes, leadsRes] = await Promise.all([
       supabaseAdmin.from("device_sessions").select("id", { count: "exact", head: true }),

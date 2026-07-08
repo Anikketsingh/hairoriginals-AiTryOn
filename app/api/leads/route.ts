@@ -10,18 +10,23 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { getSessionByToken, getCreditBalance } from "@/lib/funnel";
+import { getSessionByToken, getFunnelStage } from "@/lib/funnel";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+import { dispatchIntegrationEvent } from "@/lib/event-bus";
+import { parseJsonBody } from "@/lib/validate";
+
+const bodySchema = z.object({
+  sessionToken: z.string().min(1, "Missing sessionToken."),
+  source: z.enum(["agent_gate", "talk_to_expert"]).optional().default("agent_gate"),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const sessionToken = body?.sessionToken as string | undefined;
-    const source = (body?.source as "agent_gate" | "talk_to_expert") ?? "agent_gate";
-
-    if (!sessionToken) {
-      return NextResponse.json({ error: "Missing sessionToken." }, { status: 400 });
-    }
+    const parsed = await parseJsonBody(request, bodySchema);
+    if (parsed.error) return parsed.error;
+    const { sessionToken, source } = parsed.data;
 
     const session = await getSessionByToken(sessionToken);
     if (!session) {
@@ -45,9 +50,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Count generations used by this session/user
-    const { data: genCount } = await supabaseAdmin
+    const { count: genCount } = await supabaseAdmin
       .from("generations")
-      .select("id", { count: "exact" })
+      .select("id", { count: "exact", head: true })
       .or(
         session.user_id
           ? `user_id.eq.${session.user_id},session_id.eq.${session.id}`
@@ -66,14 +71,16 @@ export async function POST(request: NextRequest) {
       phone = user?.phone ?? null;
     }
 
+    const stage = await getFunnelStage(session.id, session.user_id);
+
     const { data: lead, error: leadError } = await supabaseAdmin
       .from("leads")
       .insert({
         user_id: session.user_id ?? null,
         session_id: session.id,
         phone,
-        funnel_stage_at_creation: session.user_id ? 3 : 1,
-        generations_count: genCount?.length ?? 0,
+        funnel_stage_at_creation: stage,
+        generations_count: genCount ?? 0,
         source,
       })
       .select("id")
@@ -83,6 +90,13 @@ export async function POST(request: NextRequest) {
       console.error("[/api/leads] Insert error:", leadError?.message);
       return NextResponse.json({ error: "Failed to create lead." }, { status: 500 });
     }
+
+    await dispatchIntegrationEvent(
+      "lead.created",
+      { leadId: lead.id, userId: session.user_id, sessionId: session.id, phone, source, generationsCount: genCount ?? 0 },
+      "crm"
+    );
+    await recordAnalyticsEvent("lead_created", { source }, session.id, session.user_id);
 
     return NextResponse.json({ leadId: lead.id }, { status: 201 });
   } catch (err) {

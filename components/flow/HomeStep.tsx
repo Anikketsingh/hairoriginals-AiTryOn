@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Camera, Wand2, Sparkles, ArrowRight, Images } from "lucide-react";
+import { Camera, Wand2, Sparkles, ArrowRight, Images, ShieldCheck, Zap, Gift } from "lucide-react";
 import Button from "@/components/ui/Button";
 
 interface HomeStepProps {
@@ -12,6 +12,12 @@ const HOW_IT_WORKS = [
   { icon: Camera, label: "Add your photo" },
   { icon: Sparkles, label: "Pick a style" },
   { icon: Wand2, label: "See your look" },
+];
+
+const TRUST = [
+  { icon: Gift, label: "Free to try" },
+  { icon: ShieldCheck, label: "Photos stay private" },
+  { icon: Zap, label: "Ready in seconds" },
 ];
 
 export default function HomeStep({ onStart }: HomeStepProps) {
@@ -53,8 +59,21 @@ export default function HomeStep({ onStart }: HomeStepProps) {
         </div>
       </div>
 
+      {/* Trust strip — honest, feature-based reassurance */}
+      <div className="mt-8 flex items-center justify-center gap-2">
+        {TRUST.map(({ icon: Icon, label }) => (
+          <div
+            key={label}
+            className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 shadow-[var(--shadow-card)]"
+          >
+            <Icon className="h-3.5 w-3.5 text-brand" aria-hidden="true" />
+            <span className="text-[11px] font-semibold text-ink-soft">{label}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Primary CTA pinned near the bottom (thumb zone) */}
-      <div className="mt-8 flex flex-col items-center gap-3">
+      <div className="mt-6 flex flex-col items-center gap-3">
         <Button size="lg" fullWidth onClick={onStart} rightIcon={<ArrowRight className="h-5 w-5" />}>
           Try a hairstyle
         </Button>

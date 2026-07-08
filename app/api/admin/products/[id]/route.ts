@@ -3,9 +3,49 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin-auth";
+import { parseJsonBody } from "@/lib/validate";
+
+const numericField = z.union([z.number(), z.string()]).optional();
+
+// A PUT can touch any subset of fields — the admin UI doesn't necessarily
+// send the full product shape — so everything here is optional; only types
+// are enforced, not presence.
+const updateProductBodySchema = z.object({
+  name: z.string().optional(),
+  slug: z.string().optional(),
+  sku: z.string().optional(),
+  category_id: z.string().uuid().optional().nullable(),
+  gender: z.string().optional(),
+  brand: z.string().optional(),
+  short_description: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  selling_price: numericField,
+  mrp: numericField,
+  discount_percentage: numericField,
+  image_url: z.string().optional(),
+  hair_type: z.string().optional().nullable(),
+  hair_length: z.string().optional().nullable(),
+  hair_density: z.string().optional().nullable(),
+  hair_color: z.string().optional().nullable(),
+  base_material: z.string().optional().nullable(),
+  installation_type: z.string().optional().nullable(),
+  recommended_for: z.string().optional().nullable(),
+  is_featured: z.boolean().optional(),
+  is_new_arrival: z.boolean().optional(),
+  is_best_seller: z.boolean().optional(),
+  is_trending: z.boolean().optional(),
+  prompt_override: z.string().optional().nullable(),
+  status: z.string().optional(),
+  change_summary: z.string().optional(),
+});
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const admin = await requireAdmin(["super_admin", "content_manager"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const { id } = await ctx.params;
     const { data: product, error } = await supabaseAdmin
@@ -26,9 +66,14 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 }
 
 export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const admin = await requireAdmin(["super_admin", "content_manager"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const { id } = await ctx.params;
-    const body = await request.json();
+    const parsed = await parseJsonBody(request, updateProductBodySchema);
+    if (parsed.error) return parsed.error;
+    const body = parsed.data;
 
     // 1. Fetch current max version number
     const { data: versions } = await supabaseAdmin
@@ -97,6 +142,9 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
 }
 
 export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const admin = await requireAdmin(["super_admin", "content_manager"]);
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const { id } = await ctx.params;
     const { error } = await supabaseAdmin.from("products").delete().eq("id", id);

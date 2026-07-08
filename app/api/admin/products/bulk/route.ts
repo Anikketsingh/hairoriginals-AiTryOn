@@ -6,16 +6,25 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/admin-auth";
+import { parseJsonBody } from "@/lib/validate";
+
+const bodySchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, "ids must be a non-empty array."),
+  action: z.enum(["publish", "archive", "delete", "change_category", "change_gender"]),
+  targetValue: z.string().optional(),
+});
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { ids, action, targetValue } = body;
+  const admin = await requireAdmin(["super_admin", "content_manager"]);
+  if (admin instanceof NextResponse) return admin;
 
-    if (!Array.isArray(ids) || ids.length === 0 || !action) {
-      return NextResponse.json({ error: "Missing ids array or action type." }, { status: 400 });
-    }
+  try {
+    const parsed = await parseJsonBody(request, bodySchema);
+    if (parsed.error) return parsed.error;
+    const { ids, action, targetValue } = parsed.data;
 
     if (action === "delete") {
       const { error } = await supabaseAdmin.from("products").delete().in("id", ids);

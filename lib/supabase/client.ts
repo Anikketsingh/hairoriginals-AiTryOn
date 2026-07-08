@@ -1,16 +1,13 @@
 /**
  * lib/supabase/client.ts
  *
- * Browser-side Supabase client — use ONLY for Supabase Auth calls.
+ * Browser-side Supabase client — use ONLY for Supabase Auth calls (the
+ * customer app's phone-OTP flow). Plain createClient with a localStorage
+ * session, distinct from admin-browser-client.ts's cookie-based client
+ * (which proxy.ts and the admin DAL need to read server-side).
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { getSupabaseUrl, getSupabaseAnonKey } from "./env";
 
-const DEFAULT_LOCAL_URL = "http://127.0.0.1:54321";
-const DEFAULT_LOCAL_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_LOCAL_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_LOCAL_ANON_KEY;
-
-export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+export const supabaseClient = createClient(getSupabaseUrl(), getSupabaseAnonKey());

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { requireCostsAccess } from "@/lib/admin-auth";
 
 export async function GET() {
+  const admin = await requireCostsAccess();
+  if (admin instanceof NextResponse) return admin;
+
   try {
     // 1. Fetch total credits and consumed split by source
     const { data: creditsData, error: creditsErr } = await supabaseAdmin
@@ -71,10 +75,12 @@ export async function GET() {
       .order("granted_at", { ascending: false })
       .limit(10);
 
-    // Fetch last 10 generations for log
+    // Fetch last 10 generations for log — explicit columns, not `*`, since
+    // generations also holds the (unused-going-forward) result_image_base64
+    // column; no reason to pull that into an admin dashboard payload.
     const { data: recentGenerations } = await supabaseAdmin
       .from("generations")
-      .select("*, user:users(phone, name)")
+      .select("id, status, model, duration_ms, error_log, created_at, completed_at, user:users(phone, name)")
       .order("created_at", { ascending: false })
       .limit(10);
 

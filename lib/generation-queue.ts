@@ -6,15 +6,140 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { generateTryOn } from "@/lib/gemini";
+import {
+  generateTryOn,
+  isAllowedGeminiModel,
+  DEFAULT_GEMINI_MODEL,
+  type GeminiModel,
+} from "@/lib/gemini";
+import { getGeminiModel } from "@/lib/settings";
+import { touchSession } from "@/lib/funnel";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+import { dispatchIntegrationEvent } from "@/lib/event-bus";
+import { refreshLeadActivity } from "@/lib/leads";
 
-interface ProcessJobParams {
+export interface ProcessJobParams {
   generationId: string;
   sessionId: string | null;
   personBase64: string;
   personType: string;
   productBase64: string;
   productType: string;
+}
+
+// Heuristic match for transient failures worth retrying once (timeouts,
+// connection resets, 5xx, rate limiting) vs. permanent ones (bad input,
+// safety rejection) that should fail immediately.
+const RETRYABLE_ERROR_PATTERN = /timeout|ECONNRESET|fetch failed|50[0-9]|429/i;
+const RETRY_DELAY_MS = 1500;
+
+// generateTryOn has no request timeout of its own — a hung connection to
+// Gemini otherwise leaves the job's promise pending forever, past both the
+// try/catch below and the retry logic, relying entirely on the 3-minute
+// stale-job reconciliation in the status route as a last resort. Race
+// against a timeout here so a hang becomes an immediate, retryable error
+// instead. (Soft timeout: the underlying call isn't aborted, just ignored.)
+const GEMINI_CALL_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+async function generateWithRetry(
+  personBase64: string,
+  personType: string,
+  productBase64: string,
+  productType: string,
+  customPrompt: string | undefined,
+  model: GeminiModel
+) {
+  const attempt = () =>
+    withTimeout(
+      generateTryOn(personBase64, personType, productBase64, productType, customPrompt, model),
+      GEMINI_CALL_TIMEOUT_MS,
+      `Gemini request timeout after ${GEMINI_CALL_TIMEOUT_MS / 1000}s`
+    );
+
+  try {
+    return await attempt();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!RETRYABLE_ERROR_PATTERN.test(message)) throw err;
+
+    console.warn("[generation-queue] Transient error, retrying once:", message);
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    return await attempt();
+  }
+}
+
+const RESULTS_BUCKET = "results";
+
+/** Uploads the generated image to the private results bucket and returns its storage path. */
+async function uploadResultImage(
+  generationId: string,
+  imageBase64: string,
+  mimeType: string
+): Promise<string> {
+  const ext = mimeType.split("/")[1] ?? "png";
+  const path = `${generationId}.${ext}`;
+  const buffer = Buffer.from(imageBase64, "base64");
+
+  const { error } = await supabaseAdmin.storage
+    .from(RESULTS_BUCKET)
+    .upload(path, buffer, { contentType: mimeType, upsert: true });
+
+  if (error) {
+    throw new Error(`Failed to store result image: ${error.message}`);
+  }
+  return path;
+}
+
+// Category slugs (supabase/migrations/20260629000005_phase3_products.sql,
+// 20260629000010_product_catalog_v2.sql) don't line up 1:1 with the seeded
+// prompt_templates slugs (20260629000006_phase4_admin_and_prompts.sql) —
+// e.g. category "hair-toppers" vs. template "hair-topper" — so map between
+// them explicitly rather than assuming a naming convention.
+const CATEGORY_TO_PROMPT_SLUG: Record<string, string> = {
+  "hair-toppers": "hair-topper",
+  "hair-extensions": "hair-extension",
+  wigs: "wig",
+  fringes: "fringe",
+  "men-wigs": "wig",
+};
+
+/**
+ * Resolves the prompt template to use, in order: category-matched active
+ * template → the seeded "default" active template → undefined (in which
+ * case generateTryOn falls back to the hardcoded HAIR_TRYON_PROMPT). Only
+ * called when the product has no prompt_override of its own.
+ */
+async function resolvePromptTemplate(categorySlug: string | undefined): Promise<string | undefined> {
+  const targetSlug = categorySlug ? CATEGORY_TO_PROMPT_SLUG[categorySlug] : undefined;
+  const slugsToTry = targetSlug ? [targetSlug, "default"] : ["default"];
+
+  for (const slug of slugsToTry) {
+    const { data } = await supabaseAdmin
+      .from("prompt_templates")
+      .select("template")
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .single();
+
+    if (data?.template) return data.template as string;
+  }
+  return undefined;
 }
 
 export async function processGenerationAsync({
@@ -34,47 +159,84 @@ export async function processGenerationAsync({
       .update({ status: "processing" })
       .eq("id", generationId);
 
-    // 2. Resolve product prompt override if linked to product
-    let customPrompt: string | undefined = undefined;
+    // 2. Resolve prompt: product override → category-matched prompt_templates
+    //    row → seeded "default" template → hardcoded fallback in gemini.ts
     const { data: genRow } = await supabaseAdmin
       .from("generations")
-      .select("product_id, products(prompt_override)")
+      .select("product_id, user_id, products(prompt_override, categories(slug))")
       .eq("id", generationId)
       .single();
 
-    if (genRow && genRow.products && (genRow.products as unknown as { prompt_override?: string }).prompt_override) {
-      customPrompt = (genRow.products as unknown as { prompt_override?: string }).prompt_override ?? undefined;
-    }
+    const userId = genRow?.user_id ?? null;
+    const product = genRow?.products as unknown as {
+      prompt_override?: string | null;
+      categories?: { slug?: string } | null;
+    } | null;
 
-    // 3. Call Gemini AI try-on API with resolved prompt
-    const result = await generateTryOn(
+    const customPrompt = product?.prompt_override
+      ? product.prompt_override
+      : await resolvePromptTemplate(product?.categories?.slug);
+
+    // 2b. Resolve model from Admin → AI Configuration, validated against the
+    //     allowlist so a bad setting value can't silently break generation.
+    const configuredModel = (await getGeminiModel()) as string;
+    const model = isAllowedGeminiModel(configuredModel) ? configuredModel : DEFAULT_GEMINI_MODEL;
+
+    // 3. Call Gemini AI try-on API with resolved prompt + model (one retry
+    //    on transient failure — see generateWithRetry above)
+    const result = await generateWithRetry(
       personBase64,
       personType,
       productBase64,
       productType,
-      customPrompt
+      customPrompt,
+      model
     );
 
     const duration = Date.now() - startTime;
 
-    // 4. Mark status as completed and store result
+    // 4. Store the result in Storage (not Postgres — see the migration
+    //    comment for why) and mark the row completed
+    const resultPath = await uploadResultImage(generationId, result.imageBase64, result.mimeType);
+
     await supabaseAdmin
       .from("generations")
       .update({
         status: "completed",
-        result_image_base64: result.imageBase64,
+        result_image_path: resultPath,
         result_mime_type: result.mimeType,
+        model,
         duration_ms: duration,
         completed_at: new Date().toISOString(),
       })
       .eq("id", generationId);
 
-    // 5. Touch session last_seen if session exists
+    // 5. Touch session last_seen if session exists. Was previously an
+    //    inline `.update({ last_seen_at: ... })` against a column that
+    //    doesn't exist (device_sessions.last_seen, not last_seen_at) — the
+    //    write silently no-op'd. touchSession() (lib/funnel.ts) has the
+    //    correct column and is already used elsewhere.
     if (sessionId) {
-      await supabaseAdmin
-        .from("device_sessions")
-        .update({ last_seen_at: new Date().toISOString() })
-        .eq("id", sessionId);
+      await touchSession(sessionId);
+    }
+
+    await recordAnalyticsEvent(
+      "generate_completed",
+      { generationId, durationMs: duration, model },
+      sessionId,
+      userId
+    );
+    await dispatchIntegrationEvent(
+      "generation.completed",
+      { generationId, sessionId, userId, durationMs: duration, model },
+      "webhook_bus"
+    );
+
+    // Keep the CRM master in sync with engagement: refresh the signed-in
+    // user's lead activity snapshot and emit lead.updated. No-op for guests
+    // (no lead until they sign in).
+    if (userId) {
+      await refreshLeadActivity({ sessionId, userId });
     }
   } catch (err: unknown) {
     const errorMessage =
@@ -89,5 +251,12 @@ export async function processGenerationAsync({
         completed_at: new Date().toISOString(),
       })
       .eq("id", generationId);
+
+    await recordAnalyticsEvent(
+      "generate_failed",
+      { generationId, error: errorMessage },
+      sessionId,
+      null
+    );
   }
 }

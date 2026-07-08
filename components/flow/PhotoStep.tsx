@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import CameraCapture from "@/components/CameraCapture";
 import { fileToUploadedImage } from "@/lib/image";
 import { validatePortraitPhoto, type ValidationResult } from "@/lib/validation";
+import { trackAnalyticsEvent } from "@/lib/analytics";
 import {
   ACCEPTED_IMAGE_TYPES,
   MAX_FILE_SIZE_BYTES,
@@ -15,11 +16,12 @@ import {
 
 interface PhotoStepProps {
   personImage?: UploadedImage;
+  sessionToken?: string | null;
   onSelect: (img: UploadedImage) => void;
   onContinue: () => void;
 }
 
-export default function PhotoStep({ personImage, onSelect, onContinue }: PhotoStepProps) {
+export default function PhotoStep({ personImage, sessionToken, onSelect, onContinue }: PhotoStepProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -42,11 +44,12 @@ export default function PhotoStep({ personImage, onSelect, onContinue }: PhotoSt
         const img = await fileToUploadedImage(file);
         if (img.dataUrl) setValidation(await validatePortraitPhoto(img.dataUrl));
         onSelect(img);
+        trackAnalyticsEvent("photo_added", {}, sessionToken);
       } catch {
         setError("Something went wrong reading that photo. Please try again.");
       }
     },
-    [onSelect]
+    [onSelect, sessionToken]
   );
 
   const openFilePicker = () => inputRef.current?.click();
@@ -185,6 +188,7 @@ export default function PhotoStep({ personImage, onSelect, onContinue }: PhotoSt
             setValidation(null);
             setError(null);
             onSelect(img);
+            trackAnalyticsEvent("photo_added", { source: "camera" }, sessionToken);
           }}
           onClose={() => setShowCamera(false)}
         />

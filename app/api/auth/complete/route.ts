@@ -14,9 +14,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { grantCredits, resolveSessionStatus, getSessionByToken } from "@/lib/funnel";
 import { getRegisteredBonusGenerations } from "@/lib/settings";
+import { recordAnalyticsEvent } from "@/lib/analytics";
+import { ensureLeadForSession } from "@/lib/leads";
+import { parseJsonBody } from "@/lib/validate";
+
+const bodySchema = z.object({ sessionToken: z.string().min(1).optional() });
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,8 +75,9 @@ export async function POST(request: NextRequest) {
     const userId = appUser.id as string;
 
     // 4. Get the session token from request body
-    const body = await request.json();
-    const sessionToken = body?.sessionToken as string | undefined;
+    const parsed = await parseJsonBody(request, bodySchema);
+    if (parsed.error) return parsed.error;
+    const { sessionToken } = parsed.data;
 
     let sessionId: string | null = null;
     if (sessionToken) {
@@ -100,6 +107,13 @@ export async function POST(request: NextRequest) {
       const bonusAmount = await getRegisteredBonusGenerations();
       await grantCredits(null, userId, "registered_bonus", bonusAmount);
     }
+
+    await recordAnalyticsEvent("login_completed", {}, sessionId, userId);
+
+    // 5b. Auto-register the user as a CRM lead the moment they sign in, and
+    //     dispatch lead.created to the DC CRM so an agent is routed to them.
+    //     Idempotent — a returning user with an existing lead is a no-op.
+    await ensureLeadForSession({ sessionId, userId, source: "registration", funnelStage: 2 });
 
     // 6. Return updated session status
     if (sessionToken) {
