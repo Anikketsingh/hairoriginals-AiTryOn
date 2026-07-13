@@ -25,7 +25,18 @@ export interface ProcessJobParams {
   personType: string;
   productBase64: string;
   productType: string;
+  /**
+   * Dev-only flag (see the demo button in app/(customer)/page.tsx). When set
+   * AND the process is not running in production, the Gemini call is skipped
+   * and the person photo is echoed back as the result — letting the whole
+   * flow be exercised without spending Gemini credits. Ignored in production.
+   */
+  demo?: boolean;
 }
+
+// Hard gate so a stray `demo` flag can never skip the real generation in a
+// production build, no matter what the client sends.
+const DEMO_MODE_ALLOWED = process.env.NODE_ENV !== "production";
 
 // Heuristic match for transient failures worth retrying once (timeouts,
 // connection resets, 5xx, rate limiting) vs. permanent ones (bad input,
@@ -149,6 +160,7 @@ export async function processGenerationAsync({
   personType,
   productBase64,
   productType,
+  demo,
 }: ProcessJobParams): Promise<void> {
   const startTime = Date.now();
 
@@ -183,15 +195,28 @@ export async function processGenerationAsync({
     const model = isAllowedGeminiModel(configuredModel) ? configuredModel : DEFAULT_GEMINI_MODEL;
 
     // 3. Call Gemini AI try-on API with resolved prompt + model (one retry
-    //    on transient failure — see generateWithRetry above)
-    const result = await generateWithRetry(
-      personBase64,
-      personType,
-      productBase64,
-      productType,
-      customPrompt,
-      model
-    );
+    //    on transient failure — see generateWithRetry above). In dev-only
+    //    demo mode the paid call is skipped and the person photo is echoed
+    //    back so the rest of the flow can be walked without spending credits.
+    let result: { imageBase64: string; mimeType: string };
+    if (demo && DEMO_MODE_ALLOWED) {
+      console.warn(
+        `[generation-queue] DEMO mode: skipping Gemini for job ${generationId}`
+      );
+      // Brief pause so the "Creating your look" screen is visible, mimicking
+      // real generation latency.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      result = { imageBase64: personBase64, mimeType: personType };
+    } else {
+      result = await generateWithRetry(
+        personBase64,
+        personType,
+        productBase64,
+        productType,
+        customPrompt,
+        model
+      );
+    }
 
     const duration = Date.now() - startTime;
 

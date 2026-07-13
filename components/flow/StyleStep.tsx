@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Check, Loader2, Package, Upload, Sparkles, ArrowRight } from "lucide-react";
 import Button from "@/components/ui/Button";
+import StickyActionBar from "@/components/ui/StickyActionBar";
 import Badge from "@/components/ui/Badge";
 import Skeleton from "@/components/ui/Skeleton";
 import Sheet from "@/components/ui/Sheet";
 import { cn } from "@/components/ui/cn";
 import { fileToUploadedImage, urlToUploadedImage } from "@/lib/image";
-import { trackAnalyticsEvent } from "@/lib/analytics";
+import { trackAnalyticsEvent } from "@/lib/analytics-client";
 import { ACCEPTED_IMAGE_TYPES, type Category, type Product, type UploadedImage } from "@/lib/types";
 
 interface StyleStepProps {
@@ -250,7 +251,7 @@ export default function StyleStep({ productImage, sessionToken, onSelect, onTryO
       </div>
 
       {/* Sticky Try-on CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/90 px-5 pt-3 pb-safe backdrop-blur-md">
+      <StickyActionBar>
         <div className="mx-auto flex max-w-md items-center gap-3 pb-3">
           {productImage?.dataUrl && (
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-line">
@@ -269,7 +270,7 @@ export default function StyleStep({ productImage, sessionToken, onSelect, onTryO
             {productImage ? "Try this on" : "Pick a style"}
           </Button>
         </div>
-      </div>
+      </StickyActionBar>
 
       {/* First-run gender sheet */}
       <Sheet open={showGenderSheet} onClose={() => setShowGenderSheet(false)} title="Who's this for?">

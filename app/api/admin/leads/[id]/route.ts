@@ -11,6 +11,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { toPublicStorageUrl } from "@/lib/supabase/public-url";
 
 const SIGNED_URL_TTL_SECONDS = 10 * 60;
 
@@ -72,9 +73,14 @@ export async function GET(
       });
     }
 
-    const looks = (generations ?? []).map(({ result_image_path, ...rest }) => ({
+    const looks = (generations ?? []).map(({ result_image_path, products, ...rest }) => ({
       ...rest,
-      result_url: result_image_path ? urlByPath.get(result_image_path) ?? null : null,
+      products: products
+        ? { ...products, image_url: toPublicStorageUrl((products as { image_url?: string | null }).image_url) }
+        : products,
+      result_url: toPublicStorageUrl(
+        result_image_path ? urlByPath.get(result_image_path) ?? null : null
+      ),
     }));
 
     // Interested products = explicitly saved styles ∪ styles they tried.
@@ -95,8 +101,15 @@ export async function GET(
       : { data: [] as unknown[] };
 
     const interestedProducts = [
-      ...(saved ?? []).map((s) => ({ ...(s.products as object), saved: true })),
-      ...((triedProducts ?? []) as object[]).map((p) => ({ ...p, saved: false })),
+      ...(saved ?? []).map((s) => {
+        const product = s.products as { image_url?: string | null };
+        return { ...product, image_url: toPublicStorageUrl(product?.image_url), saved: true };
+      }),
+      ...((triedProducts ?? []) as { image_url?: string | null }[]).map((p) => ({
+        ...p,
+        image_url: toPublicStorageUrl(p.image_url),
+        saved: false,
+      })),
     ];
 
     return NextResponse.json({ lead, looks, interestedProducts });

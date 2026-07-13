@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSessionByToken } from "@/lib/funnel";
+import { toPublicStorageUrl } from "@/lib/supabase/public-url";
 
 const SIGNED_URL_TTL_SECONDS = 10 * 60;
 
@@ -61,9 +62,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const withUrls = (generations ?? []).map(({ result_image_path, ...rest }) => ({
+    const withUrls = (generations ?? []).map(({ result_image_path, products, ...rest }) => ({
       ...rest,
-      result_url: result_image_path ? urlByPath.get(result_image_path) ?? null : null,
+      products: products
+        ? { ...products, image_url: toPublicStorageUrl((products as { image_url?: string | null }).image_url) }
+        : products,
+      result_url: toPublicStorageUrl(
+        result_image_path ? urlByPath.get(result_image_path) ?? null : null
+      ),
     }));
 
     return NextResponse.json(withUrls);

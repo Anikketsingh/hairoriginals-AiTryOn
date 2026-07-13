@@ -22,16 +22,17 @@
   --color-line: #ece4de;
   --color-line-strong: #dcd1c9;
 
-  /* Brand */
-  --color-brand: #f4623a;
-  --color-brand-strong: #e14e2a;
-  --color-brand-soft: #fff1ec;
-  --color-brand-ink: #7a2c17;
+  /* Brand — matched to the HairOriginals logo's terracotta + near-black */
+  --color-brand: #b9595c;
+  --color-brand-strong: #9c474a;
+  --color-brand-soft: #faeceb;
+  --color-brand-ink: #6b2426;
 
-  /* Gradient stops (hero CTA) */
-  --color-grad-1: #fbbf24; /* amber-400 */
-  --color-grad-2: #fb923c; /* orange-400 */
-  --color-grad-3: #f43f5e; /* rose-500 */
+  /* Gradient stops (hero CTA) — terracotta → deep rose. Kept dark enough
+     end-to-end that white button text stays WCAG-legible at every stop. */
+  --color-grad-1: #b9595c;
+  --color-grad-2: #9c474a;
+  --color-grad-3: #7a3236;
 
   /* Semantic */
   --color-success: #16a34a;
@@ -51,7 +52,7 @@
   /* Shadows — soft, warm-tinted, layered */
   --shadow-card: 0 1px 2px rgba(26, 22, 19, 0.04), 0 8px 24px rgba(26, 22, 19, 0.06);
   --shadow-pop: 0 4px 12px rgba(26, 22, 19, 0.08), 0 16px 48px rgba(26, 22, 19, 0.12);
-  --shadow-brand: 0 8px 24px rgba(244, 98, 58, 0.28);
+  --shadow-brand: 0 8px 24px rgba(185, 89, 92, 0.28);
 }
 
 /* ── Base resets ─────────────────────────────────────────── */

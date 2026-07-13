@@ -9,6 +9,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSessionByToken } from "@/lib/funnel";
 import { parseJsonBody } from "@/lib/validate";
+import { toPublicStorageUrl } from "@/lib/supabase/public-url";
 
 const savedBodySchema = z.object({
   sessionToken: z.string().min(1, "Missing sessionToken."),
@@ -41,7 +42,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch saved products." }, { status: 500 });
     }
 
-    return NextResponse.json(saved);
+    const withPublicUrls = (saved ?? []).map(({ products, ...rest }) => ({
+      ...rest,
+      products: products
+        ? { ...products, image_url: toPublicStorageUrl((products as { image_url?: string | null }).image_url) }
+        : products,
+    }));
+
+    return NextResponse.json(withPublicUrls);
   } catch (err) {
     console.error("[/api/customer/saved GET] Error:", err);
     return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });

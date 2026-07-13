@@ -1,32 +1,16 @@
 /**
  * lib/analytics.ts
  *
- * Client & Server helpers for funnel analytics event instrumentation.
- * Both funnel through the same analytics_events insert (see
- * recordAnalyticsEvent) so the shape stored is identical regardless of
- * whether the event originated in a Route Handler (server, has direct DB
- * access) or a client component (browser, must go through the API route).
+ * Server-only helper for funnel analytics event instrumentation. Inserts
+ * directly into analytics_events. The client-side beacon that funnels through
+ * the same insert (via POST /api/analytics/track) lives in
+ * lib/analytics-client.ts so browser bundles don't pull in server-only code.
  */
 
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getFunnelStage } from "@/lib/funnel";
 
-/** Client-side: fires a `POST /api/analytics/track` beacon. Never throws. */
-export async function trackAnalyticsEvent(
-  eventName: string,
-  properties: Record<string, unknown> = {},
-  sessionToken?: string | null
-): Promise<void> {
-  try {
-    await fetch("/api/analytics/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventName, properties, sessionToken }),
-    });
-  } catch (err) {
-    console.error("[analytics] Event tracking failed:", err);
-  }
-}
+/** Client-side beacon lives in lib/analytics-client.ts (browser-safe). */
 
 /**
  * Server-side: inserts directly into `analytics_events` — for Route

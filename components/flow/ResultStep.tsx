@@ -3,9 +3,10 @@
 import { useCallback, useState } from "react";
 import { Download, Heart, Share2, Sparkles, Home, Eye, SlidersHorizontal, ShoppingBag, ArrowRight } from "lucide-react";
 import Button from "@/components/ui/Button";
+import StickyActionBar from "@/components/ui/StickyActionBar";
 import BeforeAfterSlider from "@/components/BeforeAfterSlider";
 import { useToast } from "@/components/ui/Toast";
-import { trackAnalyticsEvent } from "@/lib/analytics";
+import { trackAnalyticsEvent } from "@/lib/analytics-client";
 import { cn } from "@/components/ui/cn";
 import type { Product } from "@/lib/types";
 
@@ -134,7 +135,7 @@ export default function ResultStep({
   }, [product, sessionToken]);
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-5 pt-20 pb-8 animate-fade-in">
+    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-5 pt-20 pb-44 animate-fade-in">
       {/* Success header */}
       <div className="mt-2 flex flex-col items-center gap-2 text-center">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1.5 text-xs font-bold text-success">
@@ -207,44 +208,49 @@ export default function ResultStep({
         </div>
       )}
 
-      {/* Primary CTAs */}
-      <div className="mt-4 flex flex-col gap-3">
-        {product ? (
-          <>
-            <Button
-              size="lg"
-              fullWidth
-              onClick={handleShop}
-              leftIcon={<ShoppingBag className="h-5 w-5" aria-hidden="true" />}
-              rightIcon={<ArrowRight className="h-5 w-5" aria-hidden="true" />}
-            >
-              Shop this look
-            </Button>
-            <Button
-              size="lg"
-              variant="secondary"
-              fullWidth
-              onClick={onTryAnother}
-              leftIcon={<Sparkles className="h-5 w-5" aria-hidden="true" />}
-            >
+      {/* Start over — inline (scrolls above the pinned CTAs; the TopBar back
+          arrow also triggers this) */}
+      <div className="mt-6 flex justify-center">
+        <button
+          type="button"
+          onClick={onStartOver}
+          className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] py-2 px-3 text-sm font-semibold text-ink-soft transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-brand"
+        >
+          <Home className="h-4 w-4" aria-hidden="true" /> Start over
+        </button>
+      </div>
+
+      {/* Primary CTAs — pinned to the bottom of the screen */}
+      <StickyActionBar>
+        <div className="mx-auto flex max-w-md flex-col gap-2.5 pb-3">
+          {product ? (
+            <>
+              <Button
+                size="lg"
+                fullWidth
+                onClick={handleShop}
+                leftIcon={<ShoppingBag className="h-5 w-5" aria-hidden="true" />}
+                rightIcon={<ArrowRight className="h-5 w-5" aria-hidden="true" />}
+              >
+                Shop this look
+              </Button>
+              <Button
+                size="lg"
+                variant="secondary"
+                fullWidth
+                onClick={onTryAnother}
+                leftIcon={<Sparkles className="h-5 w-5" aria-hidden="true" />}
+              >
+                Try another style
+              </Button>
+            </>
+          ) : (
+            <Button size="lg" fullWidth onClick={onTryAnother} leftIcon={<Sparkles className="h-5 w-5" aria-hidden="true" />}>
               Try another style
             </Button>
-          </>
-        ) : (
-          <Button size="lg" fullWidth onClick={onTryAnother} leftIcon={<Sparkles className="h-5 w-5" aria-hidden="true" />}>
-            Try another style
-          </Button>
-        )}
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={onStartOver}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] py-2 px-3 text-sm font-semibold text-ink-soft transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-brand"
-          >
-            <Home className="h-4 w-4" aria-hidden="true" /> Start over
-          </button>
+          )}
         </div>
-      </div>
+      </StickyActionBar>
     </div>
   );
 }

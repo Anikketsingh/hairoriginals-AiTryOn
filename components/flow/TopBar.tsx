@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Stepper from "@/components/ui/Stepper";
+import Logo from "@/components/ui/Logo";
 
 interface TopBarProps {
   /** Show a back arrow and wire it up. */
@@ -31,11 +32,8 @@ export default function TopBar({ onBack, step, right, title }: TopBarProps) {
               <ArrowLeft className="h-5 w-5" />
             </button>
           ) : (
-            <Link href="/" className="flex items-center gap-2" aria-label="HairOriginals home">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-grad-1 to-grad-3 text-white shadow-[var(--shadow-brand)]">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              <span className="text-[15px] font-extrabold tracking-tight text-ink">HairOriginals</span>
+            <Link href="/" className="flex items-center" aria-label="HairOriginals home">
+              <Logo className="h-7 w-auto" />
             </Link>
           )}
           {title && <span className="truncate text-sm font-semibold text-ink">{title}</span>}

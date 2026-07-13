@@ -160,7 +160,7 @@ site_url = "http://10.110.121.93:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://10.110.121.93:3000", "http://localhost:3000"]
+additional_redirect_urls = ["http://10.110.121.93:3000", "http://localhost:3000", "https://reservation-jpg-imposed-gst.trycloudflare.com"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -291,10 +291,21 @@ max_frequency = "5s"
 # enabled = true
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
-# Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
-# LOCAL DEV: enabled = true with placeholder creds activates the phone sign-in endpoint
-# without actually sending SMS. Test numbers in [auth.sms.test_otp] bypass all SMS calls.
-# For production, replace with real Twilio credentials via env vars.
+# Send SMS hook — delegates OTP delivery to the `nimbus-send-sms` edge function
+# (Nimbus SMS provider). Supabase still generates/verifies the OTP and issues the
+# session; only delivery is handed to this hook, which supersedes [auth.sms.twilio].
+[auth.hook.send_sms]
+enabled = true
+# Local: the edge runtime is reachable from the auth container via host.docker.internal.
+uri = "http://host.docker.internal:54321/functions/v1/nimbus-send-sms"
+# Cloud: uri = "https://<project-ref>.supabase.co/functions/v1/nimbus-send-sms"
+secrets = "env(SEND_SMS_HOOK_SECRET)"
+
+# NOTE: SMS delivery is handled by the [auth.hook.send_sms] hook (Nimbus) above.
+# This Twilio block is superseded and only kept so the phone sign-in endpoint stays
+# enabled; its credentials are unused while the send_sms hook is active.
+# LOCAL DEV: enabled = true activates the phone sign-in endpoint; test numbers in
+# [auth.sms.test_otp] bypass all SMS calls (they never reach the hook or Nimbus).
 [auth.sms.twilio]
 enabled = true
 account_sid = "local_dev_placeholder"
@@ -391,8 +402,22 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+# Secrets for the nimbus-send-sms function (see [auth.hook.send_sms] above).
+# Sourced from .env / .env.local at the project root via env() substitution.
+[edge_runtime.secrets]
+SEND_SMS_HOOK_SECRET = "env(SEND_SMS_HOOK_SECRET)"
+NIMBUS_USER_ID = "env(NIMBUS_USER_ID)"
+NIMBUS_PASSWORD = "env(NIMBUS_PASSWORD)"
+NIMBUS_SENDER_ID = "env(NIMBUS_SENDER_ID)"
+NIMBUS_ENTITY_ID = "env(NIMBUS_ENTITY_ID)"
+NIMBUS_TEMPLATE_ID = "env(NIMBUS_TEMPLATE_ID)"
+NIMBUS_OTP_TEMPLATE = "env(NIMBUS_OTP_TEMPLATE)"
+
+# The Nimbus Send SMS hook is invoked by Supabase Auth (not an end user), so it
+# must not require an end-user JWT. It authenticates via the Standard Webhooks
+# signature instead (SEND_SMS_HOOK_SECRET).
+[functions.nimbus-send-sms]
+verify_jwt = false
 
 [analytics]
 enabled = true

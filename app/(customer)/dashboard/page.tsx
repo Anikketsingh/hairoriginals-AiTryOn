@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import Skeleton from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { useSession } from "@/hooks/useSession";
+import { supabaseClient } from "@/lib/supabase/client";
 
 interface GenerationHistoryItem {
   id: string;
@@ -92,6 +93,19 @@ export default function CustomerDashboardPage() {
       if ((err as Error).name !== "AbortError") toast("Couldn't share right now", "error");
     }
   };
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch {
+      // ignore — we clear local state regardless
+    }
+    // Drop the device-session token (which is linked to the user_id server-side)
+    // and fingerprint so we return to a fresh guest session on reload.
+    localStorage.removeItem("hair_session_token");
+    localStorage.removeItem("hair_fp");
+    window.location.assign("/");
+  }, []);
 
   const creditsRemaining = sessionStatus?.creditsRemaining ?? 0;
   const stage = sessionStatus?.stage ?? 0;
@@ -245,6 +259,16 @@ export default function CustomerDashboardPage() {
               ))}
             </div>
           </section>
+        )}
+
+        {/* Subtle sign-out — only when the customer is signed in */}
+        {sessionStatus?.userId && (
+          <button
+            onClick={handleSignOut}
+            className="mx-auto mt-1 text-xs font-medium text-ink-faint underline-offset-4 transition hover:text-ink-soft hover:underline"
+          >
+            Sign out
+          </button>
         )}
       </main>
       <BottomNav />

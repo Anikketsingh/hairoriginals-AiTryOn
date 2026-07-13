@@ -90,8 +90,13 @@ export default function HomePage() {
     [refreshStatus]
   );
 
-  const handleGenerate = useCallback(async () => {
+  // `demo === true` skips the paid Gemini call (dev only — see the demo
+  // button below). Note this is passed as `onTryOn` to StyleStep, whose
+  // onClick hands us a MouseEvent; the strict `=== true` check keeps a real
+  // Try On tap from being mistaken for a demo run.
+  const handleGenerate = useCallback(async (demo?: boolean) => {
     if (!personImage || !productImage) return;
+    const isDemo = demo === true;
 
     setLoading(true);
     setResult(null);
@@ -107,6 +112,7 @@ export default function HomePage() {
 
       if (sessionToken) formData.append("sessionToken", sessionToken);
       if (productImage.productId) formData.append("productId", productImage.productId);
+      if (isDemo) formData.append("demo", "true");
 
       const response = await fetch("/api/generate", { method: "POST", body: formData });
       const data = await response.json();
@@ -242,6 +248,20 @@ export default function HomePage() {
           productImage={productImage?.dataUrl}
           onCancel={handleCancelGenerate}
         />
+      )}
+
+      {/* DEV ONLY: skip the paid Gemini call but walk the whole flow.
+          Never rendered in a production build, and the backend also refuses
+          the demo flag outside development. */}
+      {process.env.NODE_ENV !== "production" && step === "style" && !loading && (
+        <button
+          type="button"
+          onClick={() => handleGenerate(true)}
+          disabled={!personImage || !productImage}
+          className="fixed bottom-24 right-4 z-40 rounded-full border border-dashed border-amber-500 bg-amber-100 px-4 py-2 text-xs font-bold text-amber-900 shadow-lg transition active:scale-95 disabled:opacity-40"
+        >
+          Demo · skip AI
+        </button>
       )}
 
       {/* Funnel gate */}

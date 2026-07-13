@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { toPublicStorageUrl } from "@/lib/supabase/public-url";
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +32,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch products." }, { status: 500 });
     }
 
-    return NextResponse.json(products);
+    const withPublicUrls = (products ?? []).map((p) => ({
+      ...p,
+      image_url: toPublicStorageUrl(p.image_url),
+    }));
+
+    return NextResponse.json(withPublicUrls);
   } catch (err) {
     console.error("[/api/products] Error:", err);
     return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });

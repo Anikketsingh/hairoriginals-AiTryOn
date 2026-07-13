@@ -3,10 +3,11 @@
 import { useCallback, useRef, useState } from "react";
 import { Camera, ImagePlus, RefreshCw, AlertCircle, Info, ArrowRight, Check } from "lucide-react";
 import Button from "@/components/ui/Button";
+import StickyActionBar from "@/components/ui/StickyActionBar";
 import CameraCapture from "@/components/CameraCapture";
 import { fileToUploadedImage } from "@/lib/image";
 import { validatePortraitPhoto, type ValidationResult } from "@/lib/validation";
-import { trackAnalyticsEvent } from "@/lib/analytics";
+import { trackAnalyticsEvent } from "@/lib/analytics-client";
 import {
   ACCEPTED_IMAGE_TYPES,
   MAX_FILE_SIZE_BYTES,
@@ -154,7 +155,7 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
       </div>
 
       {/* Sticky continue CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/90 px-5 pt-3 pb-safe backdrop-blur-md">
+      <StickyActionBar>
         <div className="mx-auto max-w-md pb-3">
           <Button
             size="lg"
@@ -167,7 +168,7 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
             {personImage ? "Continue" : "Add a photo to continue"}
           </Button>
         </div>
-      </div>
+      </StickyActionBar>
 
       <input
         ref={inputRef}

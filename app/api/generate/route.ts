@@ -24,6 +24,9 @@ export async function POST(request: NextRequest) {
     const productImage = formData.get("productImage") as File | null;
     const sessionToken = formData.get("sessionToken") as string | null;
     const productId = formData.get("productId") as string | null;
+    // Dev-only demo flag — the background job only honors it outside
+    // production (see DEMO_MODE_ALLOWED in lib/generation-queue.ts).
+    const demo = formData.get("demo") === "true";
 
     if (!personImage || !productImage) {
       return NextResponse.json(
@@ -152,6 +155,7 @@ export async function POST(request: NextRequest) {
       personType: personImage.type,
       productBase64,
       productType: productImage.type,
+      demo,
     });
 
     await recordAnalyticsEvent("generate_started", { productId: productId || null }, sessionId, userId);

@@ -11,6 +11,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSessionByToken } from "@/lib/funnel";
+import { toPublicStorageUrl } from "@/lib/supabase/public-url";
 
 // Self-healing insurance independent of the job runner: if a row has sat in
 // pending/processing longer than this, something killed the job without
@@ -94,7 +95,7 @@ export async function GET(
       if (signError) {
         console.error("[/api/generate/status/[id]] Signed URL error:", signError.message);
       }
-      resultUrl = signed?.signedUrl ?? null;
+      resultUrl = toPublicStorageUrl(signed?.signedUrl);
     }
 
     return NextResponse.json({
