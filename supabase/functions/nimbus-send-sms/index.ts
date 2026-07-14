@@ -20,7 +20,7 @@
 
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
 
-const NIMBUS_URL = "http://nimbusit.biz/Api/smsapi/SendSms";
+const NIMBUS_URL = "http://nimbusit.biz/api/SmsApi/SendSingleApi";
 
 interface SendSmsPayload {
   user: { phone?: string };
@@ -69,7 +69,9 @@ Deno.serve(async (request) => {
     return json({ error: { message: "Invalid signature" } }, 401);
   }
 
-  const phone = payload.user?.phone?.replace(/\D/g, "");
+  // Nimbus wants the bare 10-digit number; Supabase gives E.164 (+91XXXXXXXXXX),
+  // so strip non-digits and take the last 10.
+  const phone = payload.user?.phone?.replace(/\D/g, "").slice(-10);
   const otp = payload.sms?.otp;
   if (!phone || !otp) {
     return json({ error: { message: "Missing phone or otp in payload" } }, 400);
@@ -79,23 +81,38 @@ Deno.serve(async (request) => {
   const template = requireEnv("NIMBUS_OTP_TEMPLATE");
   const message = template.replace(/\{otp\}/g, otp);
 
-  // 3. Call Nimbus.
+  // TEMP DEBUG: log the exact outgoing content + IDs (brackets reveal stray
+  // whitespace) so the delivered text can be diffed against the DLT template.
+  console.log(
+    "[nimbus-send-sms] DEBUG outgoing:",
+    JSON.stringify({
+      Msg: `[${message}]`,
+      SenderID: requireEnv("NIMBUS_SENDER_ID"),
+      EntityID: requireEnv("NIMBUS_ENTITY_ID"),
+      TemplateID: requireEnv("NIMBUS_TEMPLATE_ID"),
+      Phno: phone,
+    }),
+  );
+
+  // 3. Call Nimbus via the documented SendSingleApi (GET + query string).
+  //    Build the query manually with encodeURIComponent so spaces encode as
+  //    %20 (not +) — matching the DLT-registered template byte-for-byte, which
+  //    the carrier requires or it rejects with TEMPLATE_ERROR.
+  const query = ([
+    ["UserID", requireEnv("NIMBUS_USER_ID")],
+    ["Password", requireEnv("NIMBUS_PASSWORD")],
+    ["SenderID", requireEnv("NIMBUS_SENDER_ID")],
+    ["Phno", phone],
+    ["Msg", message],
+    ["EntityID", requireEnv("NIMBUS_ENTITY_ID")],
+    ["TemplateID", requireEnv("NIMBUS_TEMPLATE_ID")],
+  ] as [string, string][])
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join("&");
+
   let nimbus: NimbusResponse;
   try {
-    const res = await fetch(NIMBUS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        UserId: requireEnv("NIMBUS_USER_ID"),
-        Password: requireEnv("NIMBUS_PASSWORD"),
-        SenderID: requireEnv("NIMBUS_SENDER_ID"),
-        Phno: phone,
-        Msg: message,
-        EntityID: requireEnv("NIMBUS_ENTITY_ID"),
-        TemplateID: requireEnv("NIMBUS_TEMPLATE_ID"),
-        FlashMsg: 0,
-      }),
-    });
+    const res = await fetch(`${NIMBUS_URL}?${query}`, { method: "GET" });
     nimbus = (await res.json()) as NimbusResponse;
   } catch (err) {
     console.error("[nimbus-send-sms] Nimbus request failed:", err);
