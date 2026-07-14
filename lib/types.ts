@@ -62,6 +62,7 @@ export interface Product {
   mrp?: number | null;
   discount_percentage?: number | null;
   image_url: string;
+  shop_url?: string | null;
   gender?: "women" | "men" | "unisex" | "kids";
   brand?: string | null;
   status?: "draft" | "published" | "archived";

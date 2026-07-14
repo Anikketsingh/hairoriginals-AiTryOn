@@ -24,7 +24,7 @@ interface ResultStepProps {
 const STORE_URL = (process.env.NEXT_PUBLIC_STORE_URL || "https://hairoriginals.com").replace(/\/$/, "");
 
 function productUrl(product: Product): string {
-  return `${STORE_URL}/products/${product.slug}`;
+  return product.shop_url?.trim() || `${STORE_URL}/products/${product.slug}`;
 }
 
 async function urlToFile(url: string, mimeType: string): Promise<File> {

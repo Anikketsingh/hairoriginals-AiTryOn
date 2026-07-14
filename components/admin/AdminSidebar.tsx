@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Package, Sliders, BookOpen, UserCheck, BarChart3, ExternalLink, Sparkles, Shield, Coins, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, Sliders, BookOpen, UserCheck, BarChart3, ExternalLink, Sparkles, Shield, Coins, LogOut, Users } from "lucide-react";
 import type { AdminRole } from "@/lib/admin-auth";
 import { supabaseAdminBrowserClient } from "@/lib/supabase/admin-browser-client";
 
@@ -14,6 +14,7 @@ const NAV_ITEMS: { label: string; href: string; icon: typeof LayoutDashboard; ro
   { label: "AI Costs & Credits", href: "/admin/costs", icon: Coins, roles: ["super_admin"] },
   { label: "AI Configuration", href: "/admin/settings", icon: Sliders, roles: ["super_admin"] },
   { label: "Prompt Library", href: "/admin/prompts", icon: BookOpen, roles: ["super_admin"] },
+  { label: "Team & Access", href: "/admin/team", icon: Users, roles: ["super_admin"] },
 ];
 
 const ROLE_LABELS: Record<AdminRole, string> = {

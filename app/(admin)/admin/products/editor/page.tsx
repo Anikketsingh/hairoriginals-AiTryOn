@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, Sparkles, History, RotateCcw, Loader2, Plus, Trash2, CheckCircle2, UploadCloud } from "lucide-react";
+import { ArrowLeft, Save, Sparkles, History, RotateCcw, Loader2, Plus, Trash2, CheckCircle2, UploadCloud, Link2 } from "lucide-react";
 import type { Category, ProductVersion } from "@/lib/types";
 
 interface AdminImageUploaderProps {
@@ -161,6 +161,7 @@ function ProductEditorContent() {
   const [mrp, setMrp] = useState<number | "">("");
   const [discountPercentage, setDiscountPercentage] = useState<number | "">("");
   const [imageUrl, setImageUrl] = useState("");
+  const [shopUrl, setShopUrl] = useState("");
   const [status, setStatus] = useState<"published" | "draft" | "archived">("published");
 
   // Hair specs
@@ -209,6 +210,7 @@ function ProductEditorContent() {
           setMrp(data.mrp || "");
           setDiscountPercentage(data.discount_percentage || "");
           setImageUrl(data.image_url || "");
+          setShopUrl(data.shop_url || "");
           setStatus(data.status || "published");
           setHairType(data.hair_type || "");
           setHairLength(data.hair_length || "");
@@ -254,6 +256,7 @@ function ProductEditorContent() {
         mrp: Number(mrp) || 0,
         discount_percentage: Number(discountPercentage) || 0,
         image_url: imageUrl,
+        shop_url: shopUrl.trim(),
         status,
         hair_type: hairType,
         hair_length: hairLength,
@@ -428,6 +431,22 @@ function ProductEditorContent() {
                 onChange={setImageUrl}
                 placeholder="Hero Image URL..."
               />
+            </div>
+
+            <div className="md:col-span-2 flex flex-col gap-2">
+              <label className="text-xs font-semibold text-white/70 flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-amber-400" /> Shop Link (External Product URL)
+              </label>
+              <input
+                type="url"
+                value={shopUrl}
+                onChange={(e) => setShopUrl(e.target.value)}
+                placeholder="https://hairoriginals.com/products/..."
+                className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400/50"
+              />
+              <p className="text-[10px] text-white/30">
+                Where &quot;Shop this look&quot; sends the customer. Leave blank to fall back to the storefront URL built from the product slug.
+              </p>
             </div>
 
             <div className="flex flex-col gap-2">

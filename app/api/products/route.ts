@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from("products")
-      .select("id, category_id, name, slug, description, short_description, sku, price, selling_price, mrp, discount_percentage, image_url, gender, brand, is_best_seller, is_active, display_order, categories(id, name, slug)")
+      .select("id, category_id, name, slug, description, short_description, sku, price, selling_price, mrp, discount_percentage, image_url, shop_url, gender, brand, is_best_seller, is_active, display_order, categories(id, name, slug)")
       .eq("is_active", true)
       .order("display_order", { ascending: true });
 
