@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Images } from "lucide-react";
+import { UserRound } from "lucide-react";
 import Link from "next/link";
 import TopBar from "@/components/flow/TopBar";
 import BottomNav from "@/components/BottomNav";
@@ -188,13 +188,14 @@ export default function HomePage() {
       {/* Chrome */}
       {step === "home" ? (
         <TopBar
+          home
           right={
             <Link
               href="/dashboard"
               aria-label="My looks"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-ink-soft hover:bg-surface-sunken transition"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-surface-sunken transition"
             >
-              <Images className="h-5 w-5" />
+              <UserRound className="h-6 w-6" strokeWidth={2} />
             </Link>
           }
         />
@@ -239,7 +240,7 @@ export default function HomePage() {
         )}
       </main>
 
-      {step === "home" && <BottomNav />}
+      {step === "home" && <BottomNav onCta={() => setStep("photo")} />}
 
       {/* Loading takes over the screen */}
       {loading && (

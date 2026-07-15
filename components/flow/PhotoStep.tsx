@@ -58,35 +58,23 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
   const hasWarnings = !!validation && validation.warnings.length > 0;
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-5 pt-20 pb-32 animate-fade-in">
-      <div className="mt-2">
+    <div className="mx-auto flex h-[100dvh] max-w-md flex-col overflow-hidden px-5 pt-[calc(env(safe-area-inset-top)+4.25rem)] pb-[calc(env(safe-area-inset-bottom)+6rem)] animate-fade-in">
+      <div className="shrink-0">
         <h1 className="text-2xl font-extrabold tracking-tight text-ink">Add your photo</h1>
-        <p className="mt-1.5 text-[15px] text-ink-soft">
-          A clear, front-facing selfie works best.
-        </p>
+        <p className="mt-1 text-[14px] text-ink-soft">A clear, front-facing selfie works best.</p>
       </div>
 
-      {/* Preview or picker */}
-      <div className="mt-6 flex-1">
+      {/* Preview or picker — flexes to fill the screen so the source buttons
+          below always stay above the fold (no scrolling on phones). */}
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3">
         {personImage ? (
-          <div className="flex flex-col gap-4">
-            <div className="relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface-sunken shadow-[var(--shadow-card)]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={personImage.dataUrl}
-                alt="Your selected photo"
-                className="aspect-[3/4] w-full object-cover"
-              />
-            </div>
-            {/* Always-visible replace controls (no hover) */}
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="secondary" size="md" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={openFilePicker}>
-                Replace
-              </Button>
-              <Button variant="secondary" size="md" leftIcon={<Camera className="h-4 w-4" />} onClick={() => setShowCamera(true)}>
-                Retake
-              </Button>
-            </div>
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface-sunken shadow-[var(--shadow-card)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={personImage.dataUrl}
+              alt="Your selected photo"
+              className="h-full w-full object-cover"
+            />
           </div>
         ) : (
           <div
@@ -107,7 +95,7 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
             }}
             onDragLeave={() => setDragOver(false)}
             className={[
-              "flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-[var(--radius-xl)] border-2 border-dashed transition-all",
+              "flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-[var(--radius-xl)] border-2 border-dashed transition-all",
               dragOver ? "border-brand bg-brand-soft" : "border-line-strong bg-surface",
             ].join(" ")}
           >
@@ -119,21 +107,9 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
           </div>
         )}
 
-        {/* Big obvious source buttons */}
-        {!personImage && (
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <Button variant="solid" size="lg" leftIcon={<Camera className="h-5 w-5" />} onClick={() => setShowCamera(true)}>
-              Take a selfie
-            </Button>
-            <Button variant="secondary" size="lg" leftIcon={<ImagePlus className="h-5 w-5" />} onClick={openFilePicker}>
-              Choose photo
-            </Button>
-          </div>
-        )}
-
-        {/* Non-blocking quality tip */}
+        {/* Non-blocking quality tip — compresses the preview, never scrolls */}
         {hasWarnings && (
-          <div className="mt-5 flex flex-col gap-2 rounded-[var(--radius-md)] border border-warn/25 bg-warn-soft p-4">
+          <div className="flex shrink-0 flex-col gap-1.5 rounded-[var(--radius-md)] border border-warn/25 bg-warn-soft p-3">
             <span className="flex items-center gap-1.5 text-sm font-semibold text-warn">
               <Info className="h-4 w-4" /> A quick tip for a better result
             </span>
@@ -142,14 +118,36 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
                 <li key={i}>{w}</li>
               ))}
             </ul>
-            <p className="text-xs text-ink-soft">You can use this photo anyway, or retake it.</p>
           </div>
         )}
 
         {error && (
-          <div className="mt-5 flex items-start gap-2 rounded-[var(--radius-md)] border border-danger/25 bg-danger-soft px-4 py-3">
+          <div className="flex shrink-0 items-start gap-2 rounded-[var(--radius-md)] border border-danger/25 bg-danger-soft px-4 py-3">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
             <p className="text-sm text-danger">{error}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Source / replace controls — pinned above the CTA, always on screen */}
+      <div className="mt-3 shrink-0">
+        {personImage ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="secondary" size="md" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={openFilePicker}>
+              Replace
+            </Button>
+            <Button variant="secondary" size="md" leftIcon={<Camera className="h-4 w-4" />} onClick={() => setShowCamera(true)}>
+              Retake
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            <Button variant="solid" size="lg" fullWidth leftIcon={<Camera className="h-5 w-5" />} onClick={() => setShowCamera(true)}>
+              Take a selfie
+            </Button>
+            <Button variant="secondary" size="lg" fullWidth leftIcon={<ImagePlus className="h-5 w-5" />} onClick={openFilePicker}>
+              Choose photo
+            </Button>
           </div>
         )}
       </div>

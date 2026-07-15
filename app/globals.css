@@ -8,10 +8,10 @@
 @theme {
   --font-sans: var(--font-inter), system-ui, sans-serif;
 
-  /* Surfaces */
-  --color-canvas: #fbf8f6;
+  /* Surfaces — soft blush canvas, matched to the home-screen design */
+  --color-canvas: #fdf2f2;
   --color-surface: #ffffff;
-  --color-surface-sunken: #f4efec;
+  --color-surface-sunken: #f8eae9;
 
   /* Ink / text */
   --color-ink: #1a1613;
@@ -19,8 +19,8 @@
   --color-ink-faint: #9a8f88;
 
   /* Lines */
-  --color-line: #ece4de;
-  --color-line-strong: #dcd1c9;
+  --color-line: #f2e2e0;
+  --color-line-strong: #e3cdca;
 
   /* Brand — matched to the HairOriginals logo's terracotta + near-black */
   --color-brand: #b9595c;
@@ -191,6 +191,12 @@ body {
 }
 .animate-toast-in {
   animation: toast-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ── Home hero sparkles (HeroBeforeAfter) ────────────────── */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.35; transform: scale(0.6); }
+  50%      { opacity: 1; transform: scale(1); }
 }
 
 /* ── Reduced motion ──────────────────────────────────────── */
