@@ -14,7 +14,9 @@ export default function BeforeAfterSlider({
   afterImage,
   mimeType = "image/jpeg",
 }: BeforeAfterSliderProps) {
-  const [sliderPosition, setSliderPosition] = useState(50);
+  // Start near the left so the AI result is what's mostly on show; the user
+  // drags right to reveal more of their original photo.
+  const [sliderPosition, setSliderPosition] = useState(20);
   const [isDragging, setIsDragging] = useState(false);
   const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
