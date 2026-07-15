@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Mail, UserRound } from "lucide-react";
+import { Mail } from "lucide-react";
 import TopBar from "@/components/flow/TopBar";
 import BottomNav from "@/components/BottomNav";
 
@@ -36,18 +35,7 @@ const CONTACTS = [
 export default function AboutPage() {
   return (
     <>
-      <TopBar
-        home
-        right={
-          <Link
-            href="/dashboard"
-            aria-label="My looks"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-surface-sunken transition"
-          >
-            <UserRound className="h-6 w-6" strokeWidth={2} />
-          </Link>
-        }
-      />
+      <TopBar home />
 
       <main className="mx-auto w-full max-w-md px-5 pt-[calc(env(safe-area-inset-top)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+7.5rem)] animate-fade-in lg:max-w-2xl lg:pt-[calc(env(safe-area-inset-top)+7rem)] lg:pb-16">
         <h1 className="text-center text-[1.75rem] font-extrabold tracking-tight text-ink lg:text-4xl">

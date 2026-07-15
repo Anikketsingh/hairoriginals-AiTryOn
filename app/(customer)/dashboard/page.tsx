@@ -98,7 +98,21 @@ export default function CustomerDashboardPage() {
     try {
       await supabaseClient.auth.signOut();
     } catch {
-      // ignore — we clear local state regardless
+      // ignore — the session is verified gone below regardless
+    }
+    // signOut() keeps the stored session when its server-side revoke fails, and
+    // useSession re-links a surviving Supabase session to whatever device
+    // session it finds — which would sign the user straight back in on reload.
+    // Sign-out has to hold even offline, so drop the stored session by hand.
+    try {
+      const { data } = await supabaseClient.auth.getSession();
+      if (data.session) {
+        for (const key of Object.keys(localStorage)) {
+          if (/^sb-.+-auth-token/.test(key)) localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // ignore — best effort
     }
     // Drop the device-session token (which is linked to the user_id server-side)
     // and fingerprint so we return to a fresh guest session on reload.

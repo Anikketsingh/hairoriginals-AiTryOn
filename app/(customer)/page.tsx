@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { UserRound } from "lucide-react";
-import Link from "next/link";
 import TopBar from "@/components/flow/TopBar";
 import BottomNav from "@/components/BottomNav";
 import HomeStep from "@/components/flow/HomeStep";
@@ -52,6 +50,21 @@ export default function HomePage() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  // Open the home screen already scrolled past the header. On mobile the home
+  // chrome scrolls away with the page (TopBar makes it absolute, not fixed),
+  // so the hero — not the logo bar — is the first thing in view. Runs once on
+  // load only; lg+ keeps the header pinned, so there's nothing to scroll past.
+  const openedPastHeader = useRef(false);
+  useEffect(() => {
+    if (openedPastHeader.current || step !== "home") return;
+    if (window.matchMedia("(min-width: 1024px)").matches) return;
+    const header = document.querySelector("header");
+    if (!header) return;
+    openedPastHeader.current = true;
+    // `scroll-behavior: smooth` is global; this one must land instantly.
+    window.scrollTo({ top: header.offsetHeight, behavior: "instant" });
+  }, [step]);
 
   const pollJobStatus = useCallback(
     async (jobId: string, token: string) => {
@@ -187,18 +200,7 @@ export default function HomePage() {
     <>
       {/* Chrome */}
       {step === "home" ? (
-        <TopBar
-          home
-          right={
-            <Link
-              href="/dashboard"
-              aria-label="My looks"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-surface-sunken transition"
-            >
-              <UserRound className="h-6 w-6" strokeWidth={2} />
-            </Link>
-          }
-        />
+        <TopBar home />
       ) : step === "result" ? (
         <TopBar onBack={handleStartOver} step={3} />
       ) : (
