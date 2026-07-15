@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import Stepper from "@/components/ui/Stepper";
 import Logo from "@/components/ui/Logo";
@@ -18,14 +17,16 @@ interface TopBarProps {
 
 const FLOW_STEPS = ["Photo", "Style", "Result"];
 
+const STORE_URL = process.env.NEXT_PUBLIC_STORE_URL || "https://hairoriginals.com";
+
 export default function TopBar({ onBack, step, title, home }: TopBarProps) {
   if (home) {
     return (
       <header className="absolute inset-x-0 top-0 z-40 bg-canvas/85 backdrop-blur-md pt-safe lg:fixed">
         <div className="mx-auto flex h-14 max-w-md items-center justify-center px-5 lg:max-w-6xl lg:px-8">
-          <Link href="/" aria-label="HairOriginals home" className="flex items-center">
+          <a href={STORE_URL} aria-label="HairOriginals home" className="flex items-center">
             <Logo className="h-11 w-auto lg:h-12" />
-          </Link>
+          </a>
         </div>
       </header>
     );
@@ -45,9 +46,9 @@ export default function TopBar({ onBack, step, title, home }: TopBarProps) {
               <ArrowLeft className="h-5 w-5" />
             </button>
           ) : (
-            <Link href="/" className="flex items-center" aria-label="HairOriginals home">
+            <a href={STORE_URL} className="flex items-center" aria-label="HairOriginals home">
               <Logo className="h-7 w-auto" />
-            </Link>
+            </a>
           )}
           {title && <span className="truncate text-sm font-semibold text-ink">{title}</span>}
         </div>
