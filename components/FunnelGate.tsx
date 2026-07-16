@@ -124,7 +124,7 @@ function LoginGate({
           </div>
           <div>
             <p className="text-base font-bold text-ink">Sign in to keep going</p>
-            <p className="text-xs text-ink-soft">Unlock 2 more free try-ons</p>
+            <p className="text-xs text-ink-soft">Get unlimited tries after signing in</p>
           </div>
         </div>
 
