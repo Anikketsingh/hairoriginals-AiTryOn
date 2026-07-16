@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag } from "lucide-react";
+import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag, Star } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -37,10 +37,27 @@ interface InterestedProduct {
   saved?: boolean;
 }
 
+interface LeadFeedback {
+  id: string;
+  experience_rating: number;
+  improvement: string | null;
+  interest: string | null;
+  created_at: string;
+  products: { name: string } | null;
+}
+
 interface LeadDetail {
   looks: LeadLook[];
   interestedProducts: InterestedProduct[];
+  feedback: LeadFeedback[];
 }
+
+const RATING_EMOJI: Record<number, string> = { 1: "😞", 2: "😐", 3: "🙂", 4: "😍" };
+const INTEREST_LABEL: Record<string, string> = {
+  yes: "Interested",
+  maybe: "Maybe later",
+  browsing: "Just browsing",
+};
 
 export default function SalesCRMPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -94,7 +111,11 @@ export default function SalesCRMPage() {
         const res = await fetch(`/api/admin/leads/${activeLeadId}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
-          setDetail({ looks: data.looks ?? [], interestedProducts: data.interestedProducts ?? [] });
+          setDetail({
+            looks: data.looks ?? [],
+            interestedProducts: data.interestedProducts ?? [],
+            feedback: data.feedback ?? [],
+          });
         }
       } catch (err) {
         console.error("Failed to load lead detail:", err);
@@ -351,6 +372,38 @@ export default function SalesCRMPage() {
                   </div>
                 ) : !detailLoading ? (
                   <p className="text-xs text-white/30 py-3">No product interest recorded yet.</p>
+                ) : null}
+              </div>
+
+              {/* Customer Feedback */}
+              <div className="flex flex-col gap-3">
+                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <Star className="w-3.5 h-3.5 text-amber-400" /> Customer feedback
+                  {detail && <span className="text-white/40 normal-case font-medium">({detail.feedback.length})</span>}
+                </span>
+                {!detailLoading && detail && detail.feedback.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {detail.feedback.map((f) => (
+                      <div key={f.id} className="rounded-xl border border-white/5 bg-white/5 p-3 flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-base">
+                            {RATING_EMOJI[f.experience_rating] ?? "•"}{" "}
+                            <span className="text-white/60 text-xs font-semibold align-middle">{f.experience_rating}/4</span>
+                          </span>
+                          <span className="text-[10px] text-white/40">{new Date(f.created_at).toLocaleString()}</span>
+                        </div>
+                        {f.interest && (
+                          <span className="w-fit rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                            {INTEREST_LABEL[f.interest] ?? f.interest}
+                            {f.products?.name ? ` · ${f.products.name}` : ""}
+                          </span>
+                        )}
+                        {f.improvement && <p className="text-xs text-white/80">“{f.improvement}”</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : !detailLoading ? (
+                  <p className="text-xs text-white/30 py-3">No feedback submitted yet.</p>
                 ) : null}
               </div>
 

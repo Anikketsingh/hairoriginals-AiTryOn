@@ -9,12 +9,19 @@ import StyleStep from "@/components/flow/StyleStep";
 import GeneratingStep from "@/components/flow/GeneratingStep";
 import ResultStep from "@/components/flow/ResultStep";
 import FunnelGate from "@/components/FunnelGate";
+import FeedbackSheet from "@/components/FeedbackSheet";
 import { useToast } from "@/components/ui/Toast";
 import { useSession } from "@/hooks/useSession";
 import type { UploadedImage, GenerateResponse, Product } from "@/lib/types";
 
 type Step = "home" | "photo" | "style" | "result";
 const STEP_TO_HASH: Record<Step, string> = { home: "", photo: "#photo", style: "#style", result: "#result" };
+
+// Post-trial feedback: shown once after a logged-in customer's first try-on,
+// re-prompted once if skipped, then never again on this device.
+const FEEDBACK_SHOWN_KEY = "hair_feedback_shown";
+const FEEDBACK_DONE_KEY = "hair_feedback_done";
+const FEEDBACK_MAX_PROMPTS = 2;
 
 export default function HomePage() {
   const { toast } = useToast();
@@ -27,9 +34,10 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const cancelledRef = useRef(false);
 
-  const { sessionToken, refreshStatus } = useSession();
+  const { sessionToken, sessionStatus, refreshStatus } = useSession();
   const [gateStage, setGateStage] = useState<1 | 3 | null>(null);
   const [gateMessage, setGateMessage] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Sync step → URL hash so the hardware Back button works.
   useEffect(() => {
@@ -103,6 +111,32 @@ export default function HomePage() {
     [refreshStatus]
   );
 
+  // After a logged-in customer completes a try-on, prompt for quick feedback.
+  // Source of truth for "already submitted" is the server (survives across
+  // devices); the per-device counter caps it at "once, plus one re-prompt".
+  const maybePromptFeedback = useCallback(async () => {
+    if (!sessionToken || !sessionStatus?.userId) return;
+    try {
+      if (localStorage.getItem(FEEDBACK_DONE_KEY) === "1") return;
+      const shown = Number(localStorage.getItem(FEEDBACK_SHOWN_KEY) ?? "0");
+      if (shown >= FEEDBACK_MAX_PROMPTS) return;
+
+      const res = await fetch(`/api/customer/feedback?sessionToken=${encodeURIComponent(sessionToken)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.submitted) {
+          localStorage.setItem(FEEDBACK_DONE_KEY, "1");
+          return;
+        }
+      }
+
+      localStorage.setItem(FEEDBACK_SHOWN_KEY, String(shown + 1));
+      setFeedbackOpen(true);
+    } catch {
+      // Never block the result screen on a feedback check.
+    }
+  }, [sessionToken, sessionStatus?.userId]);
+
   // `demo === true` skips the paid Gemini call (dev only — see the demo
   // button below). Note this is passed as `onTryOn` to StyleStep, whose
   // onClick hands us a MouseEvent; the strict `=== true` check keeps a real
@@ -145,10 +179,12 @@ export default function HomePage() {
         await pollJobStatus(data.jobId, sessionToken ?? "");
         if (cancelledRef.current) return;
         setStep("result");
+        void maybePromptFeedback();
       } else {
         setResult(data as GenerateResponse);
         setStep("result");
         await refreshStatus();
+        void maybePromptFeedback();
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
@@ -156,7 +192,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [personImage, productImage, sessionToken, refreshStatus, pollJobStatus, toast]);
+  }, [personImage, productImage, sessionToken, refreshStatus, pollJobStatus, toast, maybePromptFeedback]);
 
   const handleStyleSelect = useCallback((img: UploadedImage | undefined, product?: Product) => {
     setProductImage(img);
@@ -278,6 +314,22 @@ export default function HomePage() {
           onDismiss={() => setGateStage(null)}
         />
       )}
+
+      {/* Post-trial feedback */}
+      <FeedbackSheet
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        sessionToken={sessionToken}
+        generationId={generationId}
+        product={selectedProduct}
+        onSubmitted={() => {
+          try {
+            localStorage.setItem(FEEDBACK_DONE_KEY, "1");
+          } catch {
+            /* ignore storage errors */
+          }
+        }}
+      />
     </>
   );
 }

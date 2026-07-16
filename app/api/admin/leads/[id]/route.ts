@@ -112,7 +112,14 @@ export async function GET(
       })),
     ];
 
-    return NextResponse.json({ lead, looks, interestedProducts });
+    // Customer's post-trial feedback for this lead (newest first).
+    const { data: feedback } = await supabaseAdmin
+      .from("customer_feedback")
+      .select("id, experience_rating, improvement, interest, created_at, products(name)")
+      .eq("lead_id", id)
+      .order("created_at", { ascending: false });
+
+    return NextResponse.json({ lead, looks, interestedProducts, feedback: feedback ?? [] });
   } catch (err) {
     console.error("[/api/admin/leads/[id]] Error:", err);
     return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });
