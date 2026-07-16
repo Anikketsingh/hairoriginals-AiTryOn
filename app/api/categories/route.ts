@@ -11,7 +11,7 @@ export async function GET() {
   try {
     const { data: categories, error } = await supabaseAdmin
       .from("categories")
-      .select("id, name, slug, description, display_order")
+      .select("id, name, slug, description, gender, display_order")
       .order("display_order", { ascending: true });
 
     if (error) {

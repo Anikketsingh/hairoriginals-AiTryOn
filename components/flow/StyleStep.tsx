@@ -215,12 +215,16 @@ export default function StyleStep({ productImage, sessionToken, onSelect, onTryO
                     <p className="line-clamp-2 min-h-[2.4rem] text-[13px] font-semibold leading-snug text-ink">
                       {p.name}
                     </p>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold text-ink">₹{price.toLocaleString()}</span>
-                      {p.mrp && p.mrp > price && (
-                        <span className="text-xs text-ink-faint line-through">₹{p.mrp.toLocaleString()}</span>
-                      )}
-                    </div>
+                    {price > 0 ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold text-ink">₹{price.toLocaleString()}</span>
+                        {p.mrp && p.mrp > price && (
+                          <span className="text-xs text-ink-faint line-through">₹{p.mrp.toLocaleString()}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs font-semibold text-ink-faint">Free to try</span>
+                    )}
                   </div>
                 </button>
               );
@@ -278,7 +282,7 @@ export default function StyleStep({ productImage, sessionToken, onSelect, onTryO
         <div className="grid grid-cols-2 gap-3">
           {([
             { g: "women" as const, emoji: "👩", sub: "Toppers, Extensions, Wigs" },
-            { g: "men" as const, emoji: "👨", sub: "Patches, Systems, Wigs" },
+            { g: "men" as const, emoji: "👨", sub: "Patches, Hairstyles, Wigs" },
           ]).map(({ g, emoji, sub }) => (
             <button
               key={g}
