@@ -24,6 +24,8 @@ interface LeadLook {
   id: string;
   result_url: string | null;
   result_mime_type: string | null;
+  /** The customer's captured photo. Null for looks generated before source photos were stored. */
+  source_url: string | null;
   created_at: string;
   products: { id: string; name: string; image_url: string; price: number | null } | null;
 }
@@ -208,9 +210,16 @@ export default function SalesCRMPage() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white">{l.phone || "Guest Session Lead"}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-semibold uppercase">
-                      Stage {l.funnel_stage_at_creation}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {l.source === "guest_tryon" && !l.phone && (
+                        <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px] font-semibold uppercase">
+                          Guest
+                        </span>
+                      )}
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-semibold uppercase">
+                        Stage {l.funnel_stage_at_creation}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-white/40">
                     <span>{l.generations_count} try-ons completed</span>
@@ -327,15 +336,37 @@ export default function SalesCRMPage() {
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {detail.looks.map((look) => (
                       <div key={look.id} className="shrink-0">
-                        <div className="h-28 w-24 overflow-hidden rounded-xl border border-white/10 bg-white/5">
-                          {look.result_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={look.result_url} alt="Customer try-on look" className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-[10px] text-white/30">no image</div>
+                        <div className="flex gap-1">
+                          {/* Null for looks generated before source photos were
+                              stored — those show the result on its own. */}
+                          {look.source_url && (
+                            <div className="relative h-28 w-24 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={look.source_url} alt="Customer's photo" className="h-full w-full object-cover" />
+                              <span className="absolute bottom-0 inset-x-0 bg-black/60 text-center text-[9px] font-semibold uppercase tracking-wider text-white/70">
+                                Before
+                              </span>
+                            </div>
                           )}
+                          <div className="relative h-28 w-24 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                            {look.result_url ? (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={look.result_url} alt="Customer try-on look" className="h-full w-full object-cover" />
+                                {look.source_url && (
+                                  <span className="absolute bottom-0 inset-x-0 bg-black/60 text-center text-[9px] font-semibold uppercase tracking-wider text-amber-300">
+                                    After
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-[10px] text-white/30">no image</div>
+                            )}
+                          </div>
                         </div>
-                        <p className="mt-1 w-24 truncate text-[10px] text-white/40">{look.products?.name || "Custom look"}</p>
+                        <p className="mt-1 truncate text-[10px] text-white/40" style={{ maxWidth: look.source_url ? "12.5rem" : "6rem" }}>
+                          {look.products?.name || "Custom look"}
+                        </p>
                       </div>
                     ))}
                   </div>

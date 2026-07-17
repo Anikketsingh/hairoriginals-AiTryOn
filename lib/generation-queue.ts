@@ -16,7 +16,7 @@ import { getGeminiModel } from "@/lib/settings";
 import { touchSession } from "@/lib/funnel";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
-import { refreshLeadActivity } from "@/lib/leads";
+import { ensureLeadForSession, refreshLeadActivity } from "@/lib/leads";
 
 export interface ProcessJobParams {
   generationId: string;
@@ -96,9 +96,11 @@ async function generateWithRetry(
 }
 
 const RESULTS_BUCKET = "results";
+const SOURCES_BUCKET = "sources";
 
-/** Uploads the generated image to the private results bucket and returns its storage path. */
-async function uploadResultImage(
+/** Uploads an image to a private bucket keyed by generation id, returning its storage path. */
+async function uploadGenerationImage(
+  bucket: string,
   generationId: string,
   imageBase64: string,
   mimeType: string
@@ -108,13 +110,45 @@ async function uploadResultImage(
   const buffer = Buffer.from(imageBase64, "base64");
 
   const { error } = await supabaseAdmin.storage
-    .from(RESULTS_BUCKET)
+    .from(bucket)
     .upload(path, buffer, { contentType: mimeType, upsert: true });
 
   if (error) {
-    throw new Error(`Failed to store result image: ${error.message}`);
+    throw new Error(`Failed to store image in ${bucket}: ${error.message}`);
   }
   return path;
+}
+
+/**
+ * Persists the customer's captured photo so the CRM can show a before/after
+ * pair and the look isn't the only surviving record of the try-on.
+ *
+ * Best-effort by design: the try-on is the product, the source photo is
+ * metadata, so a storage failure here logs and lets generation continue
+ * rather than failing the job.
+ */
+async function storeSourceImage(
+  generationId: string,
+  personBase64: string,
+  personType: string
+): Promise<void> {
+  try {
+    const path = await uploadGenerationImage(
+      SOURCES_BUCKET,
+      generationId,
+      personBase64,
+      personType
+    );
+    await supabaseAdmin
+      .from("generations")
+      .update({ source_image_path: path, source_mime_type: personType })
+      .eq("id", generationId);
+  } catch (err) {
+    console.error(
+      `[generation-queue] Failed to store source image for ${generationId}:`,
+      err instanceof Error ? err.message : err
+    );
+  }
 }
 
 // Category slugs (supabase/migrations/20260629000005_phase3_products.sql,
@@ -171,6 +205,11 @@ export async function processGenerationAsync({
       .update({ status: "processing" })
       .eq("id", generationId);
 
+    // 1b. Persist the customer's photo before calling Gemini, so a failed
+    //     generation still retains it — that's the case an agent most wants
+    //     to look at.
+    await storeSourceImage(generationId, personBase64, personType);
+
     // 2. Resolve prompt: product override → category-matched prompt_templates
     //    row → seeded "default" template → hardcoded fallback in gemini.ts
     const { data: genRow } = await supabaseAdmin
@@ -222,7 +261,12 @@ export async function processGenerationAsync({
 
     // 4. Store the result in Storage (not Postgres — see the migration
     //    comment for why) and mark the row completed
-    const resultPath = await uploadResultImage(generationId, result.imageBase64, result.mimeType);
+    const resultPath = await uploadGenerationImage(
+      RESULTS_BUCKET,
+      generationId,
+      result.imageBase64,
+      result.mimeType
+    );
 
     await supabaseAdmin
       .from("generations")
@@ -257,12 +301,19 @@ export async function processGenerationAsync({
       "webhook_bus"
     );
 
-    // Keep the CRM master in sync with engagement: refresh the signed-in
-    // user's lead activity snapshot and emit lead.updated. No-op for guests
-    // (no lead until they sign in).
-    if (userId) {
-      await refreshLeadActivity({ sessionId, userId });
-    }
+    // Keep the CRM master in sync with engagement. Guests become a lead on
+    // their first completed generation — their looks are already stored, and
+    // without a lead the CRM has nothing to hang them off. ensureLeadForSession
+    // is idempotent, so this is a no-op for a signed-in user who already has a
+    // lead from /api/auth/complete, and the guest's lead is upgraded in place
+    // (user_id + phone attached) when they later sign in.
+    await ensureLeadForSession({
+      sessionId,
+      userId,
+      source: userId ? "registration" : "guest_tryon",
+      funnelStage: userId ? 2 : 0,
+    });
+    await refreshLeadActivity({ sessionId, userId });
   } catch (err: unknown) {
     const errorMessage =
       err instanceof Error ? err.message : "Background processing failed.";

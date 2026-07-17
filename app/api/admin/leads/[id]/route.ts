@@ -15,6 +15,21 @@ import { toPublicStorageUrl } from "@/lib/supabase/public-url";
 
 const SIGNED_URL_TTL_SECONDS = 10 * 60;
 
+/** Batch-sign storage paths in one private bucket → Map<path, signedUrl>. */
+async function signPaths(bucket: string, paths: string[]): Promise<Map<string, string>> {
+  const urlByPath = new Map<string, string>();
+  if (paths.length === 0) return urlByPath;
+
+  const { data: signed } = await supabaseAdmin.storage
+    .from(bucket)
+    .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+
+  signed?.forEach((s) => {
+    if (s.signedUrl && s.path) urlByPath.set(s.path, s.signedUrl);
+  });
+  return urlByPath;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -50,38 +65,42 @@ export async function GET(
       ? `user_id.eq.${lead.user_id},session_id.eq.${lead.session_id}`
       : `session_id.eq.${lead.session_id}`;
 
-    // Customer's generated looks (completed) — sign result URLs (reuses the
+    // Customer's generated looks (completed) — sign both the captured photo
+    // and the result so the agent sees a before/after pair (reuses the
     // pattern in app/api/customer/history/route.ts).
     const { data: generations } = await supabaseAdmin
       .from("generations")
-      .select("id, status, result_image_path, result_mime_type, created_at, products(id, name, image_url, price)")
+      .select(
+        "id, status, result_image_path, result_mime_type, source_image_path, source_mime_type, created_at, products(id, name, image_url, price)"
+      )
       .or(orFilter)
       .eq("status", "completed")
       .order("created_at", { ascending: false });
 
-    const paths = (generations ?? [])
-      .map((g) => g.result_image_path)
-      .filter((p): p is string => !!p);
+    const collectPaths = (key: "result_image_path" | "source_image_path") =>
+      (generations ?? []).map((g) => g[key]).filter((p): p is string => !!p);
 
-    const urlByPath = new Map<string, string>();
-    if (paths.length > 0) {
-      const { data: signed } = await supabaseAdmin.storage
-        .from("results")
-        .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
-      signed?.forEach((s) => {
-        if (s.signedUrl && s.path) urlByPath.set(s.path, s.signedUrl);
-      });
-    }
+    const [resultUrlByPath, sourceUrlByPath] = await Promise.all([
+      signPaths("results", collectPaths("result_image_path")),
+      signPaths("sources", collectPaths("source_image_path")),
+    ]);
 
-    const looks = (generations ?? []).map(({ result_image_path, products, ...rest }) => ({
-      ...rest,
-      products: products
-        ? { ...products, image_url: toPublicStorageUrl((products as { image_url?: string | null }).image_url) }
-        : products,
-      result_url: toPublicStorageUrl(
-        result_image_path ? urlByPath.get(result_image_path) ?? null : null
-      ),
-    }));
+    const looks = (generations ?? []).map(
+      ({ result_image_path, source_image_path, products, ...rest }) => ({
+        ...rest,
+        products: products
+          ? { ...products, image_url: toPublicStorageUrl((products as { image_url?: string | null }).image_url) }
+          : products,
+        result_url: toPublicStorageUrl(
+          result_image_path ? resultUrlByPath.get(result_image_path) ?? null : null
+        ),
+        // null for every look generated before source photos were stored —
+        // the CRM falls back to showing the result alone.
+        source_url: toPublicStorageUrl(
+          source_image_path ? sourceUrlByPath.get(source_image_path) ?? null : null
+        ),
+      })
+    );
 
     // Interested products = explicitly saved styles ∪ styles they tried.
     const { data: saved } = await supabaseAdmin

@@ -13,7 +13,12 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 
-export type LeadSource = "agent_gate" | "talk_to_expert" | "manual" | "registration";
+export type LeadSource =
+  | "agent_gate"
+  | "talk_to_expert"
+  | "manual"
+  | "registration"
+  | "guest_tryon";
 
 interface OwnerRef {
   sessionId: string | null;
@@ -40,6 +45,18 @@ async function getProductsTried({ sessionId, userId }: OwnerRef): Promise<string
   const ids = new Set<string>();
   (data ?? []).forEach((r) => r.product_id && ids.add(r.product_id as string));
   return [...ids];
+}
+
+/** Stored source-photo paths for this owner, newest first (their selfie_refs). */
+async function getSourcePhotoPaths({ sessionId, userId }: OwnerRef): Promise<string[]> {
+  const { data } = await supabaseAdmin
+    .from("generations")
+    .select("source_image_path")
+    .or(ownerFilter({ sessionId, userId }))
+    .not("source_image_path", "is", null)
+    .order("created_at", { ascending: false });
+
+  return (data ?? []).map((r) => r.source_image_path as string);
 }
 
 /** Count of completed generations for this owner. */
@@ -90,12 +107,40 @@ export async function ensureLeadForSession(params: {
   try {
     const { data: existing } = await supabaseAdmin
       .from("leads")
-      .select("id")
+      .select("id, user_id")
       .or(ownerFilter({ sessionId, userId }))
       .limit(1);
 
     if (existing && existing.length > 0) {
-      return { leadId: existing[0].id as string, created: false };
+      const lead = existing[0];
+
+      // The lead was created while this person was still a guest (source
+      // 'guest_tryon' on their first try-on) and they've now signed in —
+      // claim it in place rather than leaving it anonymous forever. Without
+      // this, every sign-in matches the guest lead by session_id and returns
+      // untouched, so no lead would ever carry a user_id or phone.
+      if (userId && !lead.user_id) {
+        const phone = await resolvePhone(userId);
+        await supabaseAdmin
+          .from("leads")
+          .update({ user_id: userId, phone, updated_at: new Date().toISOString() })
+          .eq("id", lead.id);
+
+        await dispatchIntegrationEvent(
+          "lead.updated",
+          {
+            leadId: lead.id,
+            userId,
+            sessionId,
+            phone,
+            source,
+            occurredAt: new Date().toISOString(),
+          },
+          "crm"
+        );
+      }
+
+      return { leadId: lead.id as string, created: false };
     }
 
     const [phone, generationsCount, productsTried] = await Promise.all([
@@ -165,9 +210,10 @@ export async function refreshLeadActivity({ sessionId, userId }: OwnerRef): Prom
 
     if (!lead) return;
 
-    const [generationsCount, productsTried] = await Promise.all([
+    const [generationsCount, productsTried, selfieRefs] = await Promise.all([
       getCompletedCount({ sessionId, userId }),
       getProductsTried({ sessionId, userId }),
+      getSourcePhotoPaths({ sessionId, userId }),
     ]);
 
     await supabaseAdmin
@@ -175,6 +221,7 @@ export async function refreshLeadActivity({ sessionId, userId }: OwnerRef): Prom
       .update({
         generations_count: generationsCount,
         products_tried: productsTried,
+        selfie_refs: selfieRefs,
         updated_at: new Date().toISOString(),
       })
       .eq("id", lead.id);
