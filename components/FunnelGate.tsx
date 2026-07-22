@@ -13,6 +13,7 @@
 import { useState, useCallback } from "react";
 import { Phone, KeyRound, Sparkles, MessageCircle, CheckCircle, ArrowLeft } from "lucide-react";
 import { supabaseClient } from "@/lib/supabase/client";
+import { trackPixelEvent, newPixelEventId } from "@/lib/meta-pixel";
 import Sheet from "@/components/ui/Sheet";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -85,12 +86,21 @@ function LoginGate({
 
       setStep("loading");
       const accessToken = data.session?.access_token;
+      // Shared id so the browser CompleteRegistration event dedups against the
+      // server-side Conversions API twin fired in /api/auth/complete.
+      const eventId = newPixelEventId();
       if (accessToken && sessionToken) {
-        await fetch("/api/auth/complete", {
+        const res = await fetch("/api/auth/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-          body: JSON.stringify({ sessionToken }),
+          body: JSON.stringify({ sessionToken, eventId }),
         });
+        // Only count a Meta conversion for genuine first-time registrations —
+        // the server reports this so returning logins don't inflate the metric.
+        const result = await res.json().catch(() => null);
+        if (res.ok && result?.isNewRegistration) {
+          trackPixelEvent("CompleteRegistration", {}, eventId);
+        }
       }
       setStep("done");
       setTimeout(onAuthComplete, 800);

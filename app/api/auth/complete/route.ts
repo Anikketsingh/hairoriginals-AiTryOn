@@ -13,16 +13,21 @@
  * Header: Authorization: Bearer <supabase_access_token>
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { grantCredits, resolveSessionStatus, getSessionByToken } from "@/lib/funnel";
 import { getRegisteredBonusGenerations } from "@/lib/settings";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { ensureLeadForSession } from "@/lib/leads";
+import { sendCapiEvent } from "@/lib/meta-capi";
 import { parseJsonBody } from "@/lib/validate";
 
-const bodySchema = z.object({ sessionToken: z.string().min(1).optional() });
+const bodySchema = z.object({
+  sessionToken: z.string().min(1).optional(),
+  // Shared with the browser pixel event so Meta dedups the two.
+  eventId: z.string().optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,7 +82,7 @@ export async function POST(request: NextRequest) {
     // 4. Get the session token from request body
     const parsed = await parseJsonBody(request, bodySchema);
     if (parsed.error) return parsed.error;
-    const { sessionToken } = parsed.data;
+    const { sessionToken, eventId } = parsed.data;
 
     let sessionId: string | null = null;
     if (sessionToken) {
@@ -103,7 +108,11 @@ export async function POST(request: NextRequest) {
       .eq("source", "registered_bonus")
       .limit(1);
 
-    if (!existingBonus || existingBonus.length === 0) {
+    // A missing registered_bonus grant means this is the user's first sign-in —
+    // reuse that signal so the Meta conversion counts real registrations only.
+    const isNewRegistration = !existingBonus || existingBonus.length === 0;
+
+    if (isNewRegistration) {
       const bonusAmount = await getRegisteredBonusGenerations();
       await grantCredits(null, userId, "registered_bonus", bonusAmount);
     }
@@ -115,15 +124,39 @@ export async function POST(request: NextRequest) {
     //     Idempotent — a returning user with an existing lead is a no-op.
     await ensureLeadForSession({ sessionId, userId, source: "registration", funnelStage: 2 });
 
+    // 5c. Meta Conversions API: server-side twin of the browser pixel's
+    //     CompleteRegistration event, deduped via the shared eventId. Fired only
+    //     for first-time registrations and via after() so it never delays sign-in.
+    if (isNewRegistration) {
+      const forwardedFor = request.headers.get("x-forwarded-for");
+      const clientIp =
+        forwardedFor?.split(",")[0]?.trim() || request.headers.get("x-real-ip");
+      after(() =>
+        sendCapiEvent({
+          eventName: "CompleteRegistration",
+          eventId,
+          eventSourceUrl:
+            request.headers.get("origin") || request.headers.get("referer"),
+          userData: {
+            phone,
+            clientIpAddress: clientIp,
+            clientUserAgent: request.headers.get("user-agent"),
+            fbp: request.cookies.get("_fbp")?.value ?? null,
+            fbc: request.cookies.get("_fbc")?.value ?? null,
+          },
+        })
+      );
+    }
+
     // 6. Return updated session status
     if (sessionToken) {
       const status = await resolveSessionStatus(sessionToken);
       if (status) {
-        return NextResponse.json({ ...status, userId }, { status: 200 });
+        return NextResponse.json({ ...status, userId, isNewRegistration }, { status: 200 });
       }
     }
 
-    return NextResponse.json({ userId, success: true }, { status: 200 });
+    return NextResponse.json({ userId, success: true, isNewRegistration }, { status: 200 });
   } catch (err) {
     console.error("[/api/auth/complete] Unexpected error:", err);
     return NextResponse.json(
