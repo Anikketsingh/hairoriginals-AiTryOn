@@ -108,8 +108,7 @@ export async function POST(request: NextRequest) {
       .eq("source", "registered_bonus")
       .limit(1);
 
-    // A missing registered_bonus grant means this is the user's first sign-in —
-    // reuse that signal so the Meta conversion counts real registrations only.
+    // First sign-in (no registered_bonus grant yet) gets the one-time bonus.
     const isNewRegistration = !existingBonus || existingBonus.length === 0;
 
     if (isNewRegistration) {
@@ -124,16 +123,16 @@ export async function POST(request: NextRequest) {
     //     Idempotent — a returning user with an existing lead is a no-op.
     await ensureLeadForSession({ sessionId, userId, source: "registration", funnelStage: 2 });
 
-    // 5c. Meta Conversions API: server-side twin of the browser pixel's
-    //     CompleteRegistration event, deduped via the shared eventId. Fired only
-    //     for first-time registrations and via after() so it never delays sign-in.
-    if (isNewRegistration) {
+    // 5c. Meta Conversions API: server-side twin of the browser 'Schedule' pixel
+    //     event fired on OTP verification, deduped via the shared eventId. Sent
+    //     via after() so it never delays sign-in.
+    {
       const forwardedFor = request.headers.get("x-forwarded-for");
       const clientIp =
         forwardedFor?.split(",")[0]?.trim() || request.headers.get("x-real-ip");
       after(() =>
         sendCapiEvent({
-          eventName: "CompleteRegistration",
+          eventName: "Schedule",
           eventId,
           eventSourceUrl:
             request.headers.get("origin") || request.headers.get("referer"),
@@ -152,11 +151,11 @@ export async function POST(request: NextRequest) {
     if (sessionToken) {
       const status = await resolveSessionStatus(sessionToken);
       if (status) {
-        return NextResponse.json({ ...status, userId, isNewRegistration }, { status: 200 });
+        return NextResponse.json({ ...status, userId }, { status: 200 });
       }
     }
 
-    return NextResponse.json({ userId, success: true, isNewRegistration }, { status: 200 });
+    return NextResponse.json({ userId, success: true }, { status: 200 });
   } catch (err) {
     console.error("[/api/auth/complete] Unexpected error:", err);
     return NextResponse.json(

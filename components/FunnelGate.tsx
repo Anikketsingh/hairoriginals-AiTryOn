@@ -84,23 +84,20 @@ function LoginGate({
       });
       if (verifyError) throw verifyError;
 
+      // Fire the Meta 'Schedule' event the moment the OTP is verified. The
+      // shared eventId dedups this browser event against the server-side
+      // Conversions API twin sent from /api/auth/complete.
+      const eventId = newPixelEventId();
+      trackPixelEvent("Schedule", {}, eventId);
+
       setStep("loading");
       const accessToken = data.session?.access_token;
-      // Shared id so the browser CompleteRegistration event dedups against the
-      // server-side Conversions API twin fired in /api/auth/complete.
-      const eventId = newPixelEventId();
       if (accessToken && sessionToken) {
-        const res = await fetch("/api/auth/complete", {
+        await fetch("/api/auth/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify({ sessionToken, eventId }),
         });
-        // Only count a Meta conversion for genuine first-time registrations —
-        // the server reports this so returning logins don't inflate the metric.
-        const result = await res.json().catch(() => null);
-        if (res.ok && result?.isNewRegistration) {
-          trackPixelEvent("CompleteRegistration", {}, eventId);
-        }
       }
       setStep("done");
       setTimeout(onAuthComplete, 800);

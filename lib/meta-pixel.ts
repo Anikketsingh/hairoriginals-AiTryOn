@@ -35,6 +35,7 @@ const STANDARD_EVENTS = new Set([
   "Purchase",
   "Lead",
   "CompleteRegistration",
+  "Schedule",
   "Contact",
   "Subscribe",
 ]);
