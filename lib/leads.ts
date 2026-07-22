@@ -12,6 +12,20 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import { recordAnalyticsEvent } from "@/lib/analytics";
+import { getAppBaseUrl } from "@/lib/app-url";
+
+/** Cap on how many recent looks we attach to a payload. */
+const CRM_MAX_LOOKS = 5;
+
+/**
+ * Stable, non-expiring image URL for the CRM. Points at our media proxy
+ * (app/api/crm-media/[id]/[kind]), which 302s to a fresh signed URL per request
+ * — so the URL we hand Digicuro never goes dead (their signed URLs would expire
+ * in ~30 days, and they don't re-host our images).
+ */
+function crmMediaUrl(generationId: string, kind: "result" | "source"): string {
+  return `${getAppBaseUrl()}/api/crm-media/${generationId}/${kind}`;
+}
 
 export type LeadSource =
   | "agent_gate"
@@ -83,10 +97,83 @@ async function summariseProducts(ids: string[]): Promise<Array<{ id: string; nam
   }));
 }
 
-async function resolvePhone(userId: string | null): Promise<string | null> {
-  if (!userId) return null;
-  const { data } = await supabaseAdmin.from("users").select("phone").eq("id", userId).single();
-  return (data?.phone as string | null) ?? null;
+export interface LeadMedia {
+  /** Stable proxy URL of the customer's most recent generated look (null if none yet). */
+  generatedLookUrl: string | null;
+  /** Stable proxy URL of the original photo behind that latest look (null if not stored). */
+  originalPhotoUrl: string | null;
+  /** A few recent looks (newest first) so the CRM can show a small gallery. */
+  looks: Array<{
+    resultUrl: string | null;
+    originalPhotoUrl: string | null;
+    productName: string | null;
+    createdAt: string;
+  }>;
+}
+
+const EMPTY_MEDIA: LeadMedia = { generatedLookUrl: null, originalPhotoUrl: null, looks: [] };
+
+/**
+ * Collect the customer's recent generated looks + original photos as stable,
+ * non-expiring proxy URLs (see crmMediaUrl) for the outbound CRM payload.
+ * Best-effort — returns empty media on any error or when the owner has no
+ * completed generations yet.
+ */
+async function getLeadMediaUrls({ sessionId, userId }: OwnerRef): Promise<LeadMedia> {
+  try {
+    const { data: gens } = await supabaseAdmin
+      .from("generations")
+      .select("id, result_image_path, source_image_path, created_at, products(name)")
+      .or(ownerFilter({ sessionId, userId }))
+      .eq("status", "completed")
+      .not("result_image_path", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(CRM_MAX_LOOKS);
+
+    if (!gens || gens.length === 0) return EMPTY_MEDIA;
+
+    const looks = gens.map((g) => ({
+      resultUrl: g.result_image_path ? crmMediaUrl(g.id as string, "result") : null,
+      originalPhotoUrl: g.source_image_path ? crmMediaUrl(g.id as string, "source") : null,
+      productName: (g.products as { name?: string } | null)?.name ?? null,
+      createdAt: g.created_at as string,
+    }));
+
+    return {
+      generatedLookUrl: looks[0]?.resultUrl ?? null,
+      originalPhotoUrl: looks[0]?.originalPhotoUrl ?? null,
+      looks,
+    };
+  } catch (err) {
+    console.error("[leads] getLeadMediaUrls error:", err);
+    return EMPTY_MEDIA;
+  }
+}
+
+interface Contact {
+  phone: string | null;
+  name: string | null;
+  email: string | null;
+}
+
+/**
+ * The customer's contact details for the outbound CRM payload. Digicuro dedups
+ * and identifies leads on phone/email, so every event carries these. Empty for
+ * a pre-signup guest (no user row yet) — such events are skipped at delivery
+ * time until the customer registers (see lib/webhooks/delivery.ts).
+ */
+async function resolveContact(userId: string | null): Promise<Contact> {
+  if (!userId) return { phone: null, name: null, email: null };
+  const { data } = await supabaseAdmin
+    .from("users")
+    .select("phone, name, email")
+    .eq("id", userId)
+    .single();
+  return {
+    phone: (data?.phone as string | null) ?? null,
+    name: (data?.name as string | null) ?? null,
+    email: (data?.email as string | null) ?? null,
+  };
 }
 
 /**
@@ -120,10 +207,13 @@ export async function ensureLeadForSession(params: {
       // this, every sign-in matches the guest lead by session_id and returns
       // untouched, so no lead would ever carry a user_id or phone.
       if (userId && !lead.user_id) {
-        const phone = await resolvePhone(userId);
+        const [contact, media] = await Promise.all([
+          resolveContact(userId),
+          getLeadMediaUrls({ sessionId, userId }),
+        ]);
         await supabaseAdmin
           .from("leads")
-          .update({ user_id: userId, phone, updated_at: new Date().toISOString() })
+          .update({ user_id: userId, phone: contact.phone, updated_at: new Date().toISOString() })
           .eq("id", lead.id);
 
         await dispatchIntegrationEvent(
@@ -132,8 +222,13 @@ export async function ensureLeadForSession(params: {
             leadId: lead.id,
             userId,
             sessionId,
-            phone,
+            phone: contact.phone,
+            name: contact.name,
+            email: contact.email,
             source,
+            generatedLookUrl: media.generatedLookUrl,
+            originalPhotoUrl: media.originalPhotoUrl,
+            looks: media.looks,
             occurredAt: new Date().toISOString(),
           },
           "crm"
@@ -143,8 +238,8 @@ export async function ensureLeadForSession(params: {
       return { leadId: lead.id as string, created: false };
     }
 
-    const [phone, generationsCount, productsTried] = await Promise.all([
-      resolvePhone(userId),
+    const [contact, generationsCount, productsTried] = await Promise.all([
+      resolveContact(userId),
       getCompletedCount({ sessionId, userId }),
       getProductsTried({ sessionId, userId }),
     ]);
@@ -154,7 +249,7 @@ export async function ensureLeadForSession(params: {
       .insert({
         user_id: userId ?? null,
         session_id: sessionId,
-        phone,
+        phone: contact.phone,
         funnel_stage_at_creation: funnelStage,
         generations_count: generationsCount,
         products_tried: productsTried,
@@ -168,18 +263,26 @@ export async function ensureLeadForSession(params: {
       return { leadId: null, created: false };
     }
 
-    const products = await summariseProducts(productsTried);
+    const [products, media] = await Promise.all([
+      summariseProducts(productsTried),
+      getLeadMediaUrls({ sessionId, userId }),
+    ]);
     await dispatchIntegrationEvent(
       "lead.created",
       {
         leadId: lead.id,
         userId,
         sessionId,
-        phone,
+        phone: contact.phone,
+        name: contact.name,
+        email: contact.email,
         source,
         funnelStage,
         generationsCount,
         products,
+        generatedLookUrl: media.generatedLookUrl,
+        originalPhotoUrl: media.originalPhotoUrl,
+        looks: media.looks,
         occurredAt: new Date().toISOString(),
       },
       "crm"
@@ -226,15 +329,25 @@ export async function refreshLeadActivity({ sessionId, userId }: OwnerRef): Prom
       })
       .eq("id", lead.id);
 
-    const products = await summariseProducts(productsTried);
+    const [products, media, contact] = await Promise.all([
+      summariseProducts(productsTried),
+      getLeadMediaUrls({ sessionId, userId }),
+      resolveContact(userId),
+    ]);
     await dispatchIntegrationEvent(
       "lead.updated",
       {
         leadId: lead.id,
         userId,
         sessionId,
+        phone: contact.phone,
+        name: contact.name,
+        email: contact.email,
         generationsCount,
         products,
+        generatedLookUrl: media.generatedLookUrl,
+        originalPhotoUrl: media.originalPhotoUrl,
+        looks: media.looks,
         occurredAt: new Date().toISOString(),
       },
       "crm"

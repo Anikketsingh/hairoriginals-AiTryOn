@@ -1,17 +1,19 @@
 /**
  * lib/webhooks/delivery.ts
  *
- * Delivers integration_events to the DC CRM. Each event is POSTed as a signed
- * JSON envelope; the CRM verifies X-Api-Key + an HMAC-SHA256 signature over the
- * raw body. Failures back off exponentially and terminate in a 'dead' state
- * after max_attempts (dead-letter). See docs/crm-webhook-integration.md.
+ * Delivers integration_events to the DC CRM (Digicuro) vendor-lead intake
+ * webhook. Each event is mapped to their flat lead body (lib/webhooks/crm-
+ * payload.ts) and POSTed with a Bearer token. Their endpoint dedups on
+ * phone/email and returns 201 { lead_id }. Failures back off exponentially and
+ * terminate in a 'dead' state after max_attempts (dead-letter); malformed/auth
+ * (4xx) responses dead-letter immediately. See docs/crm-webhook-integration.md.
  *
  * Server-only.
  */
 
-import { createHmac } from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getCrmWebhookConfig } from "@/lib/webhooks/env";
+import { toCrmLeadBody, hasContact } from "@/lib/webhooks/crm-payload";
 
 /** Only these event types are pushed to the CRM (per the agreed contract). */
 export const DELIVERABLE_EVENT_TYPES = ["lead.created", "lead.updated"] as const;
@@ -28,11 +30,6 @@ interface EventRow {
   max_attempts: number;
   idempotency_key: string | null;
   created_at: string;
-}
-
-/** `sha256=<hex>` HMAC of the raw body — the signature the CRM must recompute. */
-export function signBody(secret: string, rawBody: string): string {
-  return "sha256=" + createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
 }
 
 function backoffSeconds(attempts: number): number {
@@ -74,9 +71,14 @@ async function markDelivered(event: EventRow): Promise<void> {
     .eq("id", event.id);
 }
 
-async function markFailure(event: EventRow, error: string): Promise<void> {
+/**
+ * Record a failed attempt. Retries with backoff until max_attempts, then
+ * dead-letters — unless `terminal` (e.g. a 4xx that won't fix on retry), which
+ * dead-letters immediately.
+ */
+async function markFailure(event: EventRow, error: string, terminal = false): Promise<void> {
   const attempts = event.attempts + 1;
-  const dead = attempts >= event.max_attempts;
+  const dead = terminal || attempts >= event.max_attempts;
   const nextAttempt = new Date(Date.now() + backoffSeconds(attempts) * 1000).toISOString();
   await supabaseAdmin
     .from("integration_events")
@@ -91,8 +93,26 @@ async function markFailure(event: EventRow, error: string): Promise<void> {
 }
 
 /**
+ * Terminally skip an event we can't deliver (e.g. no phone/email — Digicuro
+ * requires one). Not a failure: an expected outcome for pre-signup guest
+ * events, whose later lead.updated (with contact) is what creates the lead.
+ * Marked 'dead' so the sweeper stops retrying; error_log flags it as skipped.
+ */
+async function markSkipped(event: EventRow, reason: string): Promise<void> {
+  await supabaseAdmin
+    .from("integration_events")
+    .update({
+      status: "dead",
+      processed_at: new Date().toISOString(),
+      error_log: `skipped: ${reason}`,
+    })
+    .eq("id", event.id);
+}
+
+/**
  * Deliver a single event to the CRM. Returns 'delivered' | 'failed' | 'dead' |
- * 'skipped'. Skipped means not a deliverable type or CRM not configured.
+ * 'skipped'. Skipped means not a deliverable type or CRM not configured (event
+ * left pending); no-contact events are terminally skipped (dead) instead.
  */
 export async function deliverEvent(event: EventRow): Promise<string> {
   if (!DELIVERABLE_EVENT_TYPES.includes(event.event_type as (typeof DELIVERABLE_EVENT_TYPES)[number])) {
@@ -104,14 +124,14 @@ export async function deliverEvent(event: EventRow): Promise<string> {
     return "skipped";
   }
 
-  const envelope = {
-    id: event.idempotency_key ?? event.id,
-    type: event.event_type,
-    createdAt: event.created_at,
-    data: event.payload,
-  };
-  const rawBody = JSON.stringify(envelope);
-  const signature = signBody(config.outboundSecret, rawBody);
+  // Digicuro requires phone or email to dedup/identify a lead. Pre-signup guest
+  // events never have either — terminally skip so we don't retry into a 400.
+  if (!hasContact(event.payload)) {
+    await markSkipped(event, "no phone/email");
+    return "skipped";
+  }
+
+  const rawBody = JSON.stringify(toCrmLeadBody(event.payload, event.event_type));
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -120,9 +140,7 @@ export async function deliverEvent(event: EventRow): Promise<string> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Api-Key": config.apiKey,
-        "X-Signature": signature,
-        "X-Idempotency-Key": envelope.id,
+        Authorization: `Bearer ${config.token}`,
         "X-Event-Type": event.event_type,
       },
       body: rawBody,
@@ -135,8 +153,11 @@ export async function deliverEvent(event: EventRow): Promise<string> {
       await markDelivered(event);
       return "delivered";
     }
-    await markFailure(event, `HTTP ${res.status}: ${responseBody.slice(0, 500)}`);
-    return event.attempts + 1 >= event.max_attempts ? "dead" : "failed";
+    // 4xx (bad payload / auth / paused) won't succeed on retry — dead-letter now.
+    // 429 is a rate limit, so keep retrying with backoff.
+    const terminal = res.status >= 400 && res.status < 500 && res.status !== 429;
+    await markFailure(event, `HTTP ${res.status}: ${responseBody.slice(0, 500)}`, terminal);
+    return terminal || event.attempts + 1 >= event.max_attempts ? "dead" : "failed";
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markFailure(event, message);

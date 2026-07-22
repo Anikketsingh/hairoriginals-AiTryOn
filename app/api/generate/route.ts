@@ -10,10 +10,14 @@ import { enqueueGenerationJob } from "@/lib/jobs/runner";
 import { getClientIp, checkGenerateRateLimit } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 
-// Headroom for the after()-scheduled background job (Gemini call + one
-// retry can take up to ~90s — see GEMINI_CALL_TIMEOUT_MS in generation-queue.ts).
-// Relevant on platforms/adapters that enforce a max invocation duration.
-export const maxDuration = 120;
+// Max invocation duration for the after()-scheduled background job (the Gemini
+// call + one retry). Capped at 60 because the app runs on Vercel's Hobby plan,
+// whose ceiling is 60s — a higher value (we previously set 120) is silently
+// clamped there. NOTE: a slow Gemini call (up to ~90s, see
+// GEMINI_CALL_TIMEOUT_MS in generation-queue.ts) can still exceed 60s and be
+// killed on Hobby; the real fix for that is Vercel Pro (300s) or moving
+// generation to a durable queue/worker.
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {

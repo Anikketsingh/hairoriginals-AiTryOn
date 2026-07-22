@@ -1,0 +1,59 @@
+# Free retry sweeper for outbound CRM webhook delivery.
+#
+# The app runs on Vercel's Hobby (free) plan, where Vercel Cron may only fire
+# once per day. Near-real-time delivery is already handled in-request via
+# Next.js after(); this workflow is the DURABLE BACKSTOP that retries anything
+# that failed its immediate attempt (e.g. during a CRM outage), running every
+# 5 minutes instead of once a day.
+#
+# It simply calls the existing, auth-guarded sweeper endpoint. No app code runs
+# here — GitHub just curls the URL on a schedule.
+#
+# Setup (one-time):
+#   1. In GitHub → repo Settings → Secrets and variables → Actions, add a
+#      repository secret CRON_SECRET matching the CRON_SECRET env var set in
+#      Vercel (Production).
+#   2. (Optional) add a repository variable APP_URL if the host ever changes;
+#      it defaults to the production domain below.
+
+name: CRM Retry Sweeper
+
+on:
+  schedule:
+    # Every 5 minutes (UTC). GitHub's shortest allowed interval is 5 min and
+    # scheduled runs can be delayed a few minutes under load — that's fine, the
+    # immediate after() path already covers the low-latency case.
+    - cron: "*/5 * * * *"
+  # Allow manual runs from the Actions tab for testing.
+  workflow_dispatch:
+
+# Never run two sweeps at once.
+concurrency:
+  group: crm-retry-sweeper
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger dispatch-events sweeper
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://aitryon.hairoriginals.com' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is not set — add it in repo Settings → Secrets → Actions."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/sweep.out -w "%{http_code}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL}/api/cron/dispatch-events")
+          echo "HTTP ${code}"
+          cat /tmp/sweep.out
+          echo
+          # Treat any non-2xx as a failure so the run is flagged red.
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "::error::Sweeper returned HTTP ${code}"
+            exit 1
+          fi
