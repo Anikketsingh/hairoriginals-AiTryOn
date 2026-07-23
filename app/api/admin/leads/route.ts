@@ -11,16 +11,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+/**
+ * Sort options the CRM list offers. The default, `recent_activity`, surfaces
+ * customers who've come back and generated more looks (last_activity_at is
+ * bumped only on customer try-ons — see lib/leads.ts), which is the whole
+ * point of the sort: returning leads bubble to the top.
+ */
+const SORT_OPTIONS = {
+  recent_activity: { column: "last_activity_at", ascending: false },
+  newest: { column: "created_at", ascending: false },
+  oldest: { column: "created_at", ascending: true },
+  most_tryons: { column: "generations_count", ascending: false },
+  status: { column: "status", ascending: true },
+} as const;
+
+type SortKey = keyof typeof SORT_OPTIONS;
+
 export async function GET(request: NextRequest) {
   const admin = await requireAdmin(["super_admin", "sales_agent"]);
   if (admin instanceof NextResponse) return admin;
 
   try {
-    const q = new URL(request.url).searchParams.get("q")?.trim();
+    const params = new URL(request.url).searchParams;
+    const q = params.get("q")?.trim();
+    const sortParam = params.get("sort") as SortKey | null;
+    const sort = sortParam && sortParam in SORT_OPTIONS ? SORT_OPTIONS[sortParam] : SORT_OPTIONS.recent_activity;
 
     let query = supabaseAdmin
       .from("leads")
-      .select("id, user_id, session_id, phone, funnel_stage_at_creation, generations_count, status, source, assigned_agent_id, crm_lead_id, created_at, updated_at, agent_actions(id, action_type, notes, credit_amount, created_at)")
+      .select("id, user_id, session_id, phone, funnel_stage_at_creation, generations_count, status, source, assigned_agent_id, crm_lead_id, created_at, updated_at, last_activity_at, agent_actions(id, action_type, notes, credit_amount, created_at)")
+      // Tie-break on created_at so ties (e.g. equal try-on counts) stay stable.
+      .order(sort.column, { ascending: sort.ascending })
       .order("created_at", { ascending: false });
 
     if (admin.role === "sales_agent") {

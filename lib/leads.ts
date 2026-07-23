@@ -325,6 +325,10 @@ export async function refreshLeadActivity({ sessionId, userId }: OwnerRef): Prom
         generations_count: generationsCount,
         products_tried: productsTried,
         selfie_refs: selfieRefs,
+        // Customer just completed another try-on — bump the "returning
+        // customer" signal the CRM sorts and badges on. Unlike updated_at
+        // (bumped by agent actions too), this only moves on customer activity.
+        last_activity_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", lead.id);

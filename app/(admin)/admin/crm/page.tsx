@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag, Star } from "lucide-react";
+import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag, Star, ArrowUpDown, Flame } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -11,6 +11,8 @@ interface Lead {
   status: string;
   source: string;
   created_at: string;
+  /** Bumped only when the customer completes another try-on (see lib/leads.ts). */
+  last_activity_at: string | null;
   agent_actions: {
     id: string;
     action_type: string;
@@ -18,6 +20,45 @@ interface Lead {
     credit_amount: number | null;
     created_at: string;
   }[];
+}
+
+/** Sort measures offered in the CRM list — keys match the API's SORT_OPTIONS. */
+const SORT_OPTIONS = [
+  { value: "recent_activity", label: "Recent activity" },
+  { value: "newest", label: "Newest leads" },
+  { value: "oldest", label: "Oldest leads" },
+  { value: "most_tryons", label: "Most try-ons" },
+  { value: "status", label: "Status" },
+] as const;
+
+type SortKey = (typeof SORT_OPTIONS)[number]["value"];
+
+/** Compact "3h ago" / "2d ago" relative time; empty string for missing dates. */
+function timeAgo(iso: string | null): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diff = Date.now() - then;
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return `${Math.round(days / 30)}mo ago`;
+}
+
+/**
+ * True when the customer engaged again after the lead was first captured.
+ * The initial try-on that creates a lead bumps last_activity_at within
+ * seconds of created_at, so we ignore gaps under 5 minutes to avoid
+ * badging first-time leads as "returning".
+ */
+function hasReturned(lead: Lead): boolean {
+  if (!lead.last_activity_at) return false;
+  const gap = new Date(lead.last_activity_at).getTime() - new Date(lead.created_at).getTime();
+  return gap > 5 * 60 * 1000;
 }
 
 interface LeadLook {
@@ -66,6 +107,7 @@ export default function SalesCRMPage() {
   const [loading, setLoading] = useState(true);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortKey>("recent_activity");
   const [detail, setDetail] = useState<LeadDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -73,10 +115,11 @@ export default function SalesCRMPage() {
   const [creditCount, setCreditCount] = useState(2);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchLeads = useCallback(async (q?: string) => {
+  const fetchLeads = useCallback(async (q?: string, sortKey: SortKey = "recent_activity") => {
     try {
-      const url = q ? `/api/admin/leads?q=${encodeURIComponent(q)}` : "/api/admin/leads";
-      const res = await fetch(url);
+      const params = new URLSearchParams({ sort: sortKey });
+      if (q) params.set("q", q);
+      const res = await fetch(`/api/admin/leads?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setLeads(data);
@@ -89,15 +132,11 @@ export default function SalesCRMPage() {
     }
   }, []);
 
+  // Debounced agent search by phone / CRM lead id, re-run on sort change too.
   useEffect(() => {
-    fetchLeads();
-  }, [fetchLeads]);
-
-  // Debounced agent search by phone / CRM lead id.
-  useEffect(() => {
-    const t = setTimeout(() => fetchLeads(search.trim() || undefined), 300);
+    const t = setTimeout(() => fetchLeads(search.trim() || undefined, sort), 300);
     return () => clearTimeout(t);
-  }, [search, fetchLeads]);
+  }, [search, sort, fetchLeads]);
 
   // Load the selected customer's looks + interested products.
   const activeLeadId = activeLead?.id ?? null;
@@ -193,6 +232,22 @@ export default function SalesCRMPage() {
               className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-xs text-white placeholder:text-white/30 focus:border-amber-400/50 focus:outline-none"
             />
           </div>
+          {/* Sort control */}
+          <div className="relative">
+            <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              aria-label="Sort leads"
+              className="w-full appearance-none rounded-lg border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-xs font-semibold text-white focus:border-amber-400/50 focus:outline-none"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value} className="bg-black">
+                  Sort: {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
           {leads.length === 0 ? (
             <p className="text-xs text-white/30 py-8 text-center">No leads created yet.</p>
           ) : (
@@ -211,6 +266,11 @@ export default function SalesCRMPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white">{l.phone || "Guest Session Lead"}</span>
                     <div className="flex items-center gap-1.5">
+                      {hasReturned(l) && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold uppercase">
+                          <Flame className="w-3 h-3" /> Returned
+                        </span>
+                      )}
                       {l.source === "guest_tryon" && !l.phone && (
                         <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px] font-semibold uppercase">
                           Guest
@@ -225,6 +285,12 @@ export default function SalesCRMPage() {
                     <span>{l.generations_count} try-ons completed</span>
                     <span className="capitalize text-amber-400 font-medium">{l.status}</span>
                   </div>
+                  {l.last_activity_at && (
+                    <div className="flex items-center gap-1 text-[10px] text-white/30">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>Active {timeAgo(l.last_activity_at)}</span>
+                    </div>
+                  )}
                 </div>
               );
             })
