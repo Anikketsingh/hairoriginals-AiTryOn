@@ -108,6 +108,9 @@ export default function SalesCRMPage() {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("recent_activity");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [qualifiedOnly, setQualifiedOnly] = useState(false);
   const [detail, setDetail] = useState<LeadDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -115,10 +118,13 @@ export default function SalesCRMPage() {
   const [creditCount, setCreditCount] = useState(2);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchLeads = useCallback(async (q?: string, sortKey: SortKey = "recent_activity") => {
+  const fetchLeads = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ sort: sortKey });
-      if (q) params.set("q", q);
+      const params = new URLSearchParams({ sort });
+      if (search.trim()) params.set("q", search.trim());
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+      if (qualifiedOnly) params.set("qualifiedOnly", "true");
       const res = await fetch(`/api/admin/leads?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -130,13 +136,13 @@ export default function SalesCRMPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [search, sort, dateFrom, dateTo, qualifiedOnly]);
 
-  // Debounced agent search by phone / CRM lead id, re-run on sort change too.
+  // Debounced agent search / filter change — re-run on any filter update.
   useEffect(() => {
-    const t = setTimeout(() => fetchLeads(search.trim() || undefined, sort), 300);
+    const t = setTimeout(() => fetchLeads(), 300);
     return () => clearTimeout(t);
-  }, [search, sort, fetchLeads]);
+  }, [fetchLeads]);
 
   // Load the selected customer's looks + interested products.
   const activeLeadId = activeLead?.id ?? null;
@@ -248,6 +254,46 @@ export default function SalesCRMPage() {
               ))}
             </select>
           </div>
+          {/* Date range filter (filters on lead creation date) */}
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              max={dateTo || undefined}
+              aria-label="From date"
+              className="w-full rounded-lg border border-white/10 bg-white/5 py-2 px-2.5 text-[11px] text-white focus:border-amber-400/50 focus:outline-none [color-scheme:dark]"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              min={dateFrom || undefined}
+              aria-label="To date"
+              className="w-full rounded-lg border border-white/10 bg-white/5 py-2 px-2.5 text-[11px] text-white focus:border-amber-400/50 focus:outline-none [color-scheme:dark]"
+            />
+          </div>
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              className="self-start -mt-1.5 text-[10px] text-white/40 hover:text-white/70"
+            >
+              Clear date filter
+            </button>
+          )}
+          {/* Qualified-only toggle: has a phone number and isn't an anonymous guest try-on */}
+          <label className="flex items-center gap-2 text-[11px] text-white/60 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={qualifiedOnly}
+              onChange={(e) => setQualifiedOnly(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 accent-amber-400"
+            />
+            Only leads with a phone number (exclude guest try-ons)
+          </label>
           {leads.length === 0 ? (
             <p className="text-xs text-white/30 py-8 text-center">No leads created yet.</p>
           ) : (

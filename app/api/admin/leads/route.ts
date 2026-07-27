@@ -36,6 +36,14 @@ export async function GET(request: NextRequest) {
     const q = params.get("q")?.trim();
     const sortParam = params.get("sort") as SortKey | null;
     const sort = sortParam && sortParam in SORT_OPTIONS ? SORT_OPTIONS[sortParam] : SORT_OPTIONS.recent_activity;
+    const dateFrom = params.get("dateFrom")?.trim();
+    const dateTo = params.get("dateTo")?.trim();
+    // "Qualified" = has a phone we can actually call. Phone alone is enough
+    // to exclude anonymous guest try-ons — a lead that's claimed (signed in)
+    // gets phone/user_id patched onto its original row without its `source`
+    // ever changing from "guest_tryon" (see lib/leads.ts), so filtering on
+    // source as well would wrongly drop every converted guest lead.
+    const qualifiedOnly = params.get("qualifiedOnly") === "true";
 
     let query = supabaseAdmin
       .from("leads")
@@ -51,6 +59,21 @@ export async function GET(request: NextRequest) {
     // Agent search — by phone or the CRM's lead id.
     if (q) {
       query = query.or(`phone.ilike.%${q}%,crm_lead_id.ilike.%${q}%`);
+    }
+
+    if (dateFrom) {
+      query = query.gte("created_at", new Date(dateFrom).toISOString());
+    }
+    if (dateTo) {
+      // dateTo comes in as a plain YYYY-MM-DD date — push to end of that day
+      // so leads created on the "to" date itself are included.
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      query = query.lte("created_at", end.toISOString());
+    }
+
+    if (qualifiedOnly) {
+      query = query.not("phone", "is", null);
     }
 
     const { data: leads, error } = await query;
