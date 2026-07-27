@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BarChart3, TrendingUp, Users, Sparkles, MessageSquare, Loader2 } from "lucide-react";
 
 interface AnalyticsData {
@@ -18,20 +18,28 @@ interface AnalyticsData {
 export default function FunnelAnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+      const qs = params.toString();
+      const res = await fetch(`/api/admin/analytics${qs ? `?${qs}` : ""}`);
+      if (res.ok) setData(await res.json());
+    } catch (err) {
+      console.error("Failed to load analytics:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo]);
 
   useEffect(() => {
-    async function fetchAnalytics() {
-      try {
-        const res = await fetch("/api/admin/analytics");
-        if (res.ok) setData(await res.json());
-      } catch (err) {
-        console.error("Failed to load analytics:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchAnalytics();
-  }, []);
+    const t = setTimeout(() => fetchAnalytics(), 300);
+    return () => clearTimeout(t);
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (
@@ -54,6 +62,43 @@ export default function FunnelAnalyticsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight">Gating Funnel Conversion Analytics</h1>
         <p className="text-xs text-white/50 mt-1">Detailed breakdown of customer drop-offs and stage-by-stage conversion performance (§2, §7).</p>
+      </div>
+
+      {/* Date range filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label htmlFor="analytics-date-from" className="text-[11px] text-white/50">From</label>
+          <input
+            id="analytics-date-from"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            max={dateTo || undefined}
+            className="rounded-lg border border-white/10 bg-white/5 py-2 px-2.5 text-[11px] text-white focus:border-amber-400/50 focus:outline-none [color-scheme:dark]"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="analytics-date-to" className="text-[11px] text-white/50">To</label>
+          <input
+            id="analytics-date-to"
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            min={dateFrom || undefined}
+            className="rounded-lg border border-white/10 bg-white/5 py-2 px-2.5 text-[11px] text-white focus:border-amber-400/50 focus:outline-none [color-scheme:dark]"
+          />
+        </div>
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => {
+              setDateFrom("");
+              setDateTo("");
+            }}
+            className="text-[10px] text-white/40 hover:text-white/70"
+          >
+            Clear date filter
+          </button>
+        )}
       </div>
 
       {/* Conversion Funnel Pipeline Cards */}
