@@ -49,6 +49,30 @@ export interface ProductVersion {
   created_at: string;
 }
 
+// ──────────────────────────────────────────────────────────────
+// Hair Customization (Colour & Length) — per-product optional attributes
+// ──────────────────────────────────────────────────────────────
+
+/** Public option shape — deliberately omits prompt_fragment. */
+export interface CustomizationOption {
+  id: string;
+  label: string;
+  swatch_hex: string | null;
+  image_url: string | null;
+}
+
+/** Public attribute shape, with its attached options for one product. */
+export interface CustomizationAttribute {
+  key: string;
+  label: string;
+  ui_type: "swatch" | "chip" | "thumbnail";
+  options: CustomizationOption[];
+}
+
+export interface ProductCustomizationResponse {
+  attributes: CustomizationAttribute[];
+}
+
 export interface Product {
   id: string;
   category_id: string | null;
@@ -78,6 +102,7 @@ export interface Product {
   is_best_seller?: boolean;
   is_trending?: boolean;
   prompt_override?: string | null;
+  customization_enabled?: boolean;
   is_active: boolean;
   display_order: number;
   category?: Category;

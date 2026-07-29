@@ -40,7 +40,8 @@ export type SettingKey =
   | "agent_contact_channel"
   | "guest_gate_mode"
   | "agent_credits_default_expiry"
-  | "content_manager_can_see_costs";
+  | "content_manager_can_see_costs"
+  | "customization_enabled";
 
 // ────────────────────────────────────────────────────────────────
 // Cache
@@ -172,4 +173,9 @@ export async function getGeminiModel(): Promise<string> {
 
 export async function getMaxUploadSizeMb(): Promise<number> {
   return (await getSetting("max_upload_size_mb") as number) ?? 10;
+}
+
+/** Fleet-wide kill switch for Hair Colour / Hair Length customization. */
+export async function isCustomizationEnabled(): Promise<boolean> {
+  return (await getSetting("customization_enabled") as boolean) ?? true;
 }

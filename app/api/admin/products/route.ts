@@ -42,6 +42,8 @@ const createProductBodySchema = z.object({
   ai_assets: z
     .array(z.object({ asset_type: z.string(), url: z.string(), alt_text: z.string().optional() }))
     .optional(),
+  customization_enabled: z.boolean().optional(),
+  customization_option_ids: z.array(z.string().uuid()).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from("products")
-      .select("*, category:categories(*), product_ai_assets(*), product_versions(count)")
+      .select("*, category:categories(*), product_ai_assets(*), product_versions(count), product_customization_options(option_id)")
       .order("created_at", { ascending: false });
 
     if (gender && gender !== "all") {
@@ -114,6 +116,8 @@ export async function POST(request: NextRequest) {
       prompt_override,
       status,
       ai_assets,
+      customization_enabled,
+      customization_option_ids,
     } = parsed.data;
 
     const productSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
@@ -149,6 +153,7 @@ export async function POST(request: NextRequest) {
         is_trending: !!is_trending,
         prompt_override: prompt_override || null,
         status: status || "published",
+        customization_enabled: !!customization_enabled,
       })
       .select()
       .single();
@@ -167,6 +172,17 @@ export async function POST(request: NextRequest) {
         alt_text: ast.alt_text || null,
       }));
       await supabaseAdmin.from("product_ai_assets").insert(assetsToInsert);
+    }
+
+    // 2b. Attach customization options, if any were selected
+    if (Array.isArray(customization_option_ids) && customization_option_ids.length > 0) {
+      await supabaseAdmin.from("product_customization_options").insert(
+        customization_option_ids.map((option_id, index) => ({
+          product_id: product.id,
+          option_id,
+          display_order: index,
+        }))
+      );
     }
 
     // 3. Create initial Version v1 snapshot

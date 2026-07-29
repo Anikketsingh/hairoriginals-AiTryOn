@@ -12,7 +12,13 @@ import {
   DEFAULT_GEMINI_MODEL,
   type GeminiModel,
 } from "@/lib/gemini";
-import { getGeminiModel } from "@/lib/settings";
+import { HAIR_TRYON_PROMPT } from "@/lib/prompt";
+import { getGeminiModel, isCustomizationEnabled } from "@/lib/settings";
+import {
+  composeCustomizedPrompt,
+  resolveProductCustomizations,
+  type ResolvedCustomization,
+} from "@/lib/customization";
 import { touchSession } from "@/lib/funnel";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
@@ -25,6 +31,13 @@ export interface ProcessJobParams {
   personType: string;
   productBase64: string;
   productType: string;
+  /**
+   * Client-selected Hair Colour / Hair Length option ids (see
+   * lib/customization.ts). Re-resolved against the product's actual
+   * attachments here — never trusted as-is — so an id that isn't attached,
+   * inactive, or belongs to another product is silently dropped.
+   */
+  customizationOptionIds?: string[];
   /**
    * Dev-only flag (see the demo button in app/(customer)/page.tsx). When set
    * AND the process is not running in production, the Gemini call is skipped
@@ -194,6 +207,7 @@ export async function processGenerationAsync({
   personType,
   productBase64,
   productType,
+  customizationOptionIds,
   demo,
 }: ProcessJobParams): Promise<void> {
   const startTime = Date.now();
@@ -214,13 +228,15 @@ export async function processGenerationAsync({
     //    row → seeded "default" template → hardcoded fallback in gemini.ts
     const { data: genRow } = await supabaseAdmin
       .from("generations")
-      .select("product_id, user_id, products(prompt_override, categories(slug))")
+      .select("product_id, user_id, products(prompt_override, customization_enabled, categories(slug))")
       .eq("id", generationId)
       .single();
 
     const userId = genRow?.user_id ?? null;
+    const productId = genRow?.product_id ?? null;
     const product = genRow?.products as unknown as {
       prompt_override?: string | null;
+      customization_enabled?: boolean;
       categories?: { slug?: string } | null;
     } | null;
 
@@ -232,6 +248,27 @@ export async function processGenerationAsync({
     //     allowlist so a bad setting value can't silently break generation.
     const configuredModel = (await getGeminiModel()) as string;
     const model = isAllowedGeminiModel(configuredModel) ? configuredModel : DEFAULT_GEMINI_MODEL;
+
+    // 2c. Resolve Hair Colour / Hair Length customizations. Gated three ways
+    //     — product opt-in, fleet-wide kill switch, and ids actually sent —
+    //     each of which fails closed to "no customization" rather than
+    //     failing the generation. Option ids are re-resolved from the DB in
+    //     resolveProductCustomizations, never trusted as sent.
+    let resolvedCustomizations: ResolvedCustomization[] = [];
+    if (productId && product?.customization_enabled && customizationOptionIds?.length) {
+      const globallyEnabled = await isCustomizationEnabled();
+      if (globallyEnabled) {
+        resolvedCustomizations = await resolveProductCustomizations(productId, customizationOptionIds);
+      }
+    }
+
+    // basePrompt mirrors the fallback generateTryOn applies internally when
+    // customPrompt is undefined — resolved here so composeCustomizedPrompt
+    // has one definite base string to append to. composeCustomizedPrompt
+    // returns it completely unchanged when there's nothing to customize, so
+    // this is a no-op for every generation without customizations.
+    const basePrompt = customPrompt ?? HAIR_TRYON_PROMPT;
+    const finalPrompt = composeCustomizedPrompt(basePrompt, resolvedCustomizations);
 
     // 3. Call Gemini AI try-on API with resolved prompt + model (one retry
     //    on transient failure — see generateWithRetry above). In dev-only
@@ -252,7 +289,7 @@ export async function processGenerationAsync({
         personType,
         productBase64,
         productType,
-        customPrompt,
+        finalPrompt,
         model
       );
     }
@@ -275,6 +312,8 @@ export async function processGenerationAsync({
         result_image_path: resultPath,
         result_mime_type: result.mimeType,
         model,
+        prompt_used: finalPrompt,
+        customizations: resolvedCustomizations.length > 0 ? resolvedCustomizations : null,
         duration_ms: duration,
         completed_at: new Date().toISOString(),
       })
@@ -291,7 +330,12 @@ export async function processGenerationAsync({
 
     await recordAnalyticsEvent(
       "generate_completed",
-      { generationId, durationMs: duration, model },
+      {
+        generationId,
+        durationMs: duration,
+        model,
+        customizations: resolvedCustomizations.map((c) => ({ attribute: c.attribute_key, option: c.option_label })),
+      },
       sessionId,
       userId
     );

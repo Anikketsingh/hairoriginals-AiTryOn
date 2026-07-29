@@ -164,6 +164,30 @@ export default function AIConfigPage() {
             </div>
           </div>
         </div>
+
+        {/* Feature Flags */}
+        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-5">
+          <div className="flex items-center gap-2 pb-3 border-b border-white/8">
+            <Sliders className="w-4 h-4 text-amber-400" />
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Feature Flags</h2>
+          </div>
+
+          <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
+            <div>
+              <p className="text-xs font-semibold text-white">Hair Colour &amp; Length Customization</p>
+              <p className="text-[10px] text-white/40 mt-0.5">
+                Fleet-wide kill switch. Turning this off disables the customize step for every product, even ones
+                with it enabled individually — no deploy required.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={(settings.customization_enabled as boolean) ?? true}
+              onChange={(e) => updateField("customization_enabled", e.target.checked)}
+              className="shrink-0 w-4 h-4 rounded bg-white/10"
+            />
+          </label>
+        </div>
       </div>
     </div>
   );

@@ -6,16 +6,29 @@ import BottomNav from "@/components/BottomNav";
 import HomeStep from "@/components/flow/HomeStep";
 import PhotoStep from "@/components/flow/PhotoStep";
 import StyleStep from "@/components/flow/StyleStep";
+import CustomizeStep from "@/components/flow/CustomizeStep";
 import GeneratingStep from "@/components/flow/GeneratingStep";
 import ResultStep from "@/components/flow/ResultStep";
 import FunnelGate from "@/components/FunnelGate";
 import FeedbackSheet from "@/components/FeedbackSheet";
 import { useToast } from "@/components/ui/Toast";
 import { useSession } from "@/hooks/useSession";
-import type { UploadedImage, GenerateResponse, Product } from "@/lib/types";
+import type {
+  UploadedImage,
+  GenerateResponse,
+  Product,
+  CustomizationAttribute,
+  ProductCustomizationResponse,
+} from "@/lib/types";
 
-type Step = "home" | "photo" | "style" | "result";
-const STEP_TO_HASH: Record<Step, string> = { home: "", photo: "#photo", style: "#style", result: "#result" };
+type Step = "home" | "photo" | "style" | "customize" | "result";
+const STEP_TO_HASH: Record<Step, string> = {
+  home: "",
+  photo: "#photo",
+  style: "#style",
+  customize: "#customize",
+  result: "#result",
+};
 
 // Post-trial feedback: shown once after a logged-in customer's first try-on,
 // re-prompted once if skipped, then never again on this device.
@@ -29,6 +42,8 @@ export default function HomePage() {
   const [personImage, setPersonImage] = useState<UploadedImage | undefined>();
   const [productImage, setProductImage] = useState<UploadedImage | undefined>();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [customizationAttributes, setCustomizationAttributes] = useState<CustomizationAttribute[]>([]);
+  const [customizationSelections, setCustomizationSelections] = useState<Record<string, string>>({});
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,14 +65,18 @@ export default function HomePage() {
   useEffect(() => {
     const onPop = () => {
       const h = window.location.hash;
-      if (h === "#style") setStep("style");
+      // A direct/refreshed deep link to #customize with nothing selected
+      // (or a product with nothing to customize) has no screen to show —
+      // fall back to style rather than rendering an empty customize step.
+      if (h === "#customize") setStep(customizationAttributes.length > 0 ? "customize" : "style");
+      else if (h === "#style") setStep("style");
       else if (h === "#photo") setStep("photo");
       else if (h === "#result") setStep("result");
       else setStep("home");
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [customizationAttributes.length]);
 
   // Open the home screen already scrolled past the header. On mobile the home
   // chrome scrolls away with the page (TopBar makes it absolute, not fixed),
@@ -161,6 +180,11 @@ export default function HomePage() {
       if (productImage.productId) formData.append("productId", productImage.productId);
       if (isDemo) formData.append("demo", "true");
 
+      const customizationOptionIds = Object.values(customizationSelections);
+      if (customizationOptionIds.length > 0) {
+        formData.append("customizationOptionIds", JSON.stringify(customizationOptionIds));
+      }
+
       const response = await fetch("/api/generate", { method: "POST", body: formData });
       const data = await response.json();
 
@@ -192,23 +216,65 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [personImage, productImage, sessionToken, refreshStatus, pollJobStatus, toast, maybePromptFeedback]);
+  }, [personImage, productImage, sessionToken, customizationSelections, refreshStatus, pollJobStatus, toast, maybePromptFeedback]);
 
-  const handleStyleSelect = useCallback((img: UploadedImage | undefined, product?: Product) => {
+  const handleStyleSelect = useCallback(async (img: UploadedImage | undefined, product?: Product) => {
     setProductImage(img);
     setSelectedProduct(product ?? null);
+    setCustomizationSelections({});
+
+    // Prefetch inside the same spinner StyleStep already shows while it
+    // downloads the product image — "Try this on" stays instant either way.
+    // Every failure mode (disabled product, fetch error, bad response)
+    // resolves to an empty array, which is what makes a non-configured
+    // product silently skip the customize screen.
+    if (!product?.customization_enabled) {
+      setCustomizationAttributes([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/products/${product.id}/customization`);
+      if (!res.ok) throw new Error("Failed to load customization options.");
+      const data: ProductCustomizationResponse = await res.json();
+      setCustomizationAttributes(data.attributes);
+      const initialSelections: Record<string, string> = {};
+      for (const attribute of data.attributes) {
+        if (attribute.options[0]) initialSelections[attribute.key] = attribute.options[0].id;
+      }
+      setCustomizationSelections(initialSelections);
+    } catch (err) {
+      console.error("[HomePage] customization fetch failed:", err);
+      setCustomizationAttributes([]);
+    }
   }, []);
+
+  const handleCustomizationSelect = useCallback((attributeKey: string, optionId: string) => {
+    setCustomizationSelections((prev) => ({ ...prev, [attributeKey]: optionId }));
+  }, []);
+
+  // Branches after "Try this on" on the style grid: skip straight to
+  // generation for products with nothing to customize (today's exact
+  // behavior), otherwise show the customize step first.
+  const handleStyleContinue = useCallback(() => {
+    if (customizationAttributes.length > 0) {
+      setStep("customize");
+    } else {
+      handleGenerate();
+    }
+  }, [customizationAttributes, handleGenerate]);
 
   const handleCancelGenerate = useCallback(() => {
     cancelledRef.current = true;
     setLoading(false);
-    setStep("style");
-  }, []);
+    setStep(customizationAttributes.length > 0 ? "customize" : "style");
+  }, [customizationAttributes]);
 
   const handleTryAnother = useCallback(() => {
     setResult(null);
     setProductImage(undefined);
     setSelectedProduct(null);
+    setCustomizationAttributes([]);
+    setCustomizationSelections({});
     setStep("style");
   }, []);
 
@@ -217,6 +283,8 @@ export default function HomePage() {
     setPersonImage(undefined);
     setProductImage(undefined);
     setSelectedProduct(null);
+    setCustomizationAttributes([]);
+    setCustomizationSelections({});
     setStep("home");
   }, []);
 
@@ -227,10 +295,13 @@ export default function HomePage() {
   }, [refreshStatus, handleGenerate]);
 
   const back = useCallback(() => {
-    setStep((s) => (s === "style" ? "photo" : s === "photo" ? "home" : "home"));
+    setStep((s) => (s === "customize" ? "style" : s === "style" ? "photo" : s === "photo" ? "home" : "home"));
   }, []);
 
-  const stepNumber = step === "photo" ? 1 : step === "style" ? 2 : step === "result" ? 3 : undefined;
+  // "customize" is a sub-screen of "Style" on the shared 3-step indicator —
+  // it reports the same position rather than growing FLOW_STEPS to 4, which
+  // would make the stepper product-dependent for the common case.
+  const stepNumber = step === "photo" ? 1 : step === "style" || step === "customize" ? 2 : step === "result" ? 3 : undefined;
 
   return (
     <>
@@ -260,6 +331,17 @@ export default function HomePage() {
             productImage={productImage}
             sessionToken={sessionToken}
             onSelect={handleStyleSelect}
+            onTryOn={handleStyleContinue}
+          />
+        )}
+
+        {step === "customize" && (
+          <CustomizeStep
+            productImage={productImage}
+            product={selectedProduct}
+            attributes={customizationAttributes}
+            selections={customizationSelections}
+            onSelect={handleCustomizationSelect}
             onTryOn={handleGenerate}
           />
         )}

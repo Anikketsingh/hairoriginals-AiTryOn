@@ -3,8 +3,24 @@
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, Sparkles, History, RotateCcw, Loader2, Plus, Trash2, CheckCircle2, UploadCloud, Link2 } from "lucide-react";
+import { ArrowLeft, Save, Sparkles, History, RotateCcw, Loader2, Plus, Trash2, CheckCircle2, UploadCloud, Link2, Palette, AlertTriangle } from "lucide-react";
 import type { Category, ProductVersion } from "@/lib/types";
+
+interface CustomizationOptionLite {
+  id: string;
+  attribute_id: string;
+  label: string;
+  swatch_hex: string | null;
+  is_active: boolean;
+}
+
+interface CustomizationAttributeLite {
+  id: string;
+  key: string;
+  label: string;
+  ui_type: "swatch" | "chip" | "thumbnail";
+  is_active: boolean;
+}
 
 interface AdminImageUploaderProps {
   label: string;
@@ -146,7 +162,7 @@ function ProductEditorContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"basic" | "specs" | "display" | "ai_assets" | "prompt" | "history">("basic");
+  const [activeTab, setActiveTab] = useState<"basic" | "specs" | "display" | "ai_assets" | "customization" | "prompt" | "history">("basic");
 
   // Product Form State
   const [name, setName] = useState("");
@@ -186,13 +202,25 @@ function ProductEditorContent() {
     { asset_type: "side", url: "" },
   ]);
 
+  // Hair Customization (Colour & Length)
+  const [customizationEnabled, setCustomizationEnabled] = useState(false);
+  const [customizationOptionIds, setCustomizationOptionIds] = useState<string[]>([]);
+  const [customizationAttributes, setCustomizationAttributes] = useState<CustomizationAttributeLite[]>([]);
+  const [customizationOptions, setCustomizationOptions] = useState<CustomizationOptionLite[]>([]);
+
   // Versions history
   const [versions, setVersions] = useState<ProductVersion[]>([]);
 
   const loadInitialData = useCallback(async () => {
     try {
-      const catRes = await fetch("/api/categories");
+      const [catRes, attrRes, optRes] = await Promise.all([
+        fetch("/api/categories"),
+        fetch("/api/admin/customization/attributes"),
+        fetch("/api/admin/customization/options"),
+      ]);
       if (catRes.ok) setCategories(await catRes.json());
+      if (attrRes.ok) setCustomizationAttributes(await attrRes.json());
+      if (optRes.ok) setCustomizationOptions(await optRes.json());
 
       if (productId) {
         const prodRes = await fetch(`/api/admin/products/${productId}`);
@@ -226,6 +254,12 @@ function ProductEditorContent() {
           setPromptOverride(data.prompt_override || "");
           if (data.product_ai_assets) setAiAssets(data.product_ai_assets);
           if (data.product_versions) setVersions(data.product_versions);
+          setCustomizationEnabled(!!data.customization_enabled);
+          if (Array.isArray(data.product_customization_options)) {
+            setCustomizationOptionIds(
+              data.product_customization_options.map((row: { option_id: string }) => row.option_id)
+            );
+          }
         }
       }
     } catch (err) {
@@ -271,6 +305,8 @@ function ProductEditorContent() {
         is_trending: isTrending,
         prompt_override: promptOverride,
         ai_assets: aiAssets.filter((a) => a.url.trim() !== ""),
+        customization_enabled: customizationEnabled,
+        customization_option_ids: customizationOptionIds,
       };
 
       const endpoint = productId ? `/api/admin/products/${productId}` : "/api/admin/products";
@@ -355,6 +391,7 @@ function ProductEditorContent() {
           { id: "specs", label: "Hair & Technical Specs" },
           { id: "display", label: "Display & Status" },
           { id: "ai_assets", label: "AI Reference Assets" },
+          { id: "customization", label: "Customization" },
           { id: "prompt", label: "AI Prompt Override" },
           ...(productId ? [{ id: "history", label: "Version Audit Log" }] : []),
         ].map((tab) => (
@@ -608,6 +645,92 @@ function ProductEditorContent() {
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {/* TAB: Hair Customization (Colour & Length) */}
+        {activeTab === "customization" && (
+          <div className="flex flex-col gap-6">
+            <label className="flex items-center justify-between gap-3 p-4 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
+              <div className="flex items-center gap-2.5">
+                <Palette className="w-4 h-4 text-amber-400" />
+                <div>
+                  <p className="text-xs font-bold text-white">Enable Hair Colour &amp; Length Customization</p>
+                  <p className="text-[10px] text-white/40 mt-0.5">
+                    When on, customers who pick this style are shown a customize screen for the options ticked below
+                    before generating. When off, generation proceeds exactly as it does today — no extra screen.
+                  </p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={customizationEnabled}
+                onChange={(e) => setCustomizationEnabled(e.target.checked)}
+                className="shrink-0 w-4 h-4 rounded bg-white/10"
+              />
+            </label>
+
+            {customizationEnabled && customizationOptionIds.length === 0 && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-200 text-[11px]">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>Customization is on but no options are selected — customers will not see the customization screen.</span>
+              </div>
+            )}
+
+            {customizationAttributes.filter((a) => a.is_active).length === 0 ? (
+              <p className="text-xs text-white/30 py-2">
+                No customization attributes exist yet. Create some in{" "}
+                <a href="/admin/customization" className="text-amber-400 underline">Hair Customization</a>.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-5">
+                {customizationAttributes
+                  .filter((a) => a.is_active)
+                  .map((attr) => {
+                    const attrOptions = customizationOptions.filter((o) => o.attribute_id === attr.id && o.is_active);
+                    return (
+                      <div key={attr.id} className="flex flex-col gap-2.5">
+                        <span className="text-xs font-bold text-white/70 uppercase tracking-wider">{attr.label}</span>
+                        {attrOptions.length === 0 ? (
+                          <p className="text-[11px] text-white/30">No active options for this attribute yet.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {attrOptions.map((opt) => {
+                              const checked = customizationOptionIds.includes(opt.id);
+                              return (
+                                <label
+                                  key={opt.id}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-all ${
+                                    checked ? "bg-amber-400/15 border-amber-400/40 text-amber-200" : "bg-white/5 border-white/10 text-white/60"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) =>
+                                      setCustomizationOptionIds((prev) =>
+                                        e.target.checked ? [...prev, opt.id] : prev.filter((id) => id !== opt.id)
+                                      )
+                                    }
+                                    className="rounded bg-white/10"
+                                  />
+                                  {attr.ui_type === "swatch" && opt.swatch_hex && (
+                                    <span
+                                      className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0"
+                                      style={{ backgroundColor: opt.swatch_hex }}
+                                    />
+                                  )}
+                                  <span className="text-xs">{opt.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         )}
 

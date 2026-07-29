@@ -41,6 +41,14 @@ const updateProductBodySchema = z.object({
   prompt_override: z.string().optional().nullable(),
   status: z.string().optional(),
   change_summary: z.string().optional(),
+  customization_enabled: z.boolean().optional(),
+  // Absent = leave attachments untouched; present (including []) = replace
+  // the full set. This distinction matters: the update below writes every
+  // other field unconditionally, and doing the same here would silently
+  // wipe attachments on any partial save that doesn't mention them — the
+  // same bug ai_assets has on this route (PUT has no ai_assets field at
+  // all, so edits to it are dropped). Don't repeat that for customization.
+  customization_option_ids: z.array(z.string().uuid()).optional(),
 });
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -51,7 +59,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const { id } = await ctx.params;
     const { data: product, error } = await supabaseAdmin
       .from("products")
-      .select("*, category:categories(*), product_ai_assets(*), product_versions(*)")
+      .select("*, category:categories(*), product_ai_assets(*), product_versions(*), product_customization_options(option_id)")
       .eq("id", id)
       .single();
 
@@ -117,6 +125,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
         is_trending: !!body.is_trending,
         prompt_override: body.prompt_override || null,
         status: body.status || "published",
+        customization_enabled: !!body.customization_enabled,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -126,6 +135,22 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
     if (updErr || !updated) {
       console.error("[/api/admin/products/[id] PUT] Error:", updErr?.message);
       return NextResponse.json({ error: "Failed to update product." }, { status: 500 });
+    }
+
+    // 2b. Replace customization option attachments — but only when the key
+    //     was actually sent. See the schema comment above for why `undefined`
+    //     must mean "leave alone" rather than "clear".
+    if (body.customization_option_ids !== undefined) {
+      await supabaseAdmin.from("product_customization_options").delete().eq("product_id", id);
+      if (body.customization_option_ids.length > 0) {
+        await supabaseAdmin.from("product_customization_options").insert(
+          body.customization_option_ids.map((option_id, index) => ({
+            product_id: id,
+            option_id,
+            display_order: index,
+          }))
+        );
+      }
     }
 
     // 3. Log snapshot to product_versions

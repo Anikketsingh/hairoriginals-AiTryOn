@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import {
   getSessionByToken,
   getFunnelStage,
@@ -9,6 +10,12 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { enqueueGenerationJob } from "@/lib/jobs/runner";
 import { getClientIp, checkGenerateRateLimit } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
+
+// Shape-only check — real enforcement (is this id actually attached to this
+// product? is it active?) happens in the background job via
+// resolveProductCustomizations, which re-reads from the DB. Capped at 8 so
+// one request can't fan out into an unbounded join.
+const customizationOptionIdsSchema = z.array(z.string().uuid()).max(8);
 
 // Max invocation duration for the after()-scheduled background job (the Gemini
 // call + one retry). Capped at 60 because the app runs on Vercel's Hobby plan,
@@ -31,6 +38,32 @@ export async function POST(request: NextRequest) {
     // Dev-only demo flag — the background job only honors it outside
     // production (see DEMO_MODE_ALLOWED in lib/generation-queue.ts).
     const demo = formData.get("demo") === "true";
+
+    // Hair Colour / Hair Length selections — absent, empty, or unparseable
+    // JSON fails open to "no customization" so this field can never break
+    // the existing generate flow. A parseable-but-wrong-shaped array (bad
+    // types, too many entries) is a real client bug, so that gets a 400.
+    const customizationOptionIdsRaw = formData.get("customizationOptionIds") as string | null;
+    let customizationOptionIds: string[] = [];
+    if (customizationOptionIdsRaw && customizationOptionIdsRaw.trim() !== "") {
+      let parsedJson: unknown;
+      let isParseable = true;
+      try {
+        parsedJson = JSON.parse(customizationOptionIdsRaw);
+      } catch {
+        isParseable = false;
+      }
+      if (isParseable) {
+        const result = customizationOptionIdsSchema.safeParse(parsedJson);
+        if (!result.success) {
+          return NextResponse.json(
+            { error: "customizationOptionIds must be an array of up to 8 UUIDs." },
+            { status: 400 }
+          );
+        }
+        customizationOptionIds = result.data;
+      }
+    }
 
     if (!personImage || !productImage) {
       return NextResponse.json(
@@ -159,6 +192,7 @@ export async function POST(request: NextRequest) {
       personType: personImage.type,
       productBase64,
       productType: productImage.type,
+      customizationOptionIds,
       demo,
     });
 

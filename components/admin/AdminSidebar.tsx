@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Package, Sliders, BookOpen, UserCheck, BarChart3, ExternalLink, Sparkles, Shield, Coins, LogOut, Users } from "lucide-react";
+import { LayoutDashboard, Package, Sliders, BookOpen, UserCheck, BarChart3, ExternalLink, Sparkles, Shield, Coins, LogOut, Users, Palette } from "lucide-react";
 import type { AdminRole } from "@/lib/admin-auth";
 import { supabaseAdminBrowserClient } from "@/lib/supabase/admin-browser-client";
 
@@ -10,6 +10,7 @@ const NAV_ITEMS: { label: string; href: string; icon: typeof LayoutDashboard; ro
   { label: "Overview", href: "/admin", icon: LayoutDashboard, roles: ["super_admin", "content_manager", "sales_agent"] },
   { label: "Sales CRM & Leads", href: "/admin/crm", icon: UserCheck, roles: ["super_admin", "sales_agent"] },
   { label: "Products & Categories", href: "/admin/products", icon: Package, roles: ["super_admin", "content_manager"] },
+  { label: "Hair Customization", href: "/admin/customization", icon: Palette, roles: ["super_admin", "content_manager"] },
   { label: "Funnel Analytics", href: "/admin/analytics", icon: BarChart3, roles: ["super_admin", "content_manager"] },
   { label: "AI Costs & Credits", href: "/admin/costs", icon: Coins, roles: ["super_admin"] },
   { label: "AI Configuration", href: "/admin/settings", icon: Sliders, roles: ["super_admin"] },
