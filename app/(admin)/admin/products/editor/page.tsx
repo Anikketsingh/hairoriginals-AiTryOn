@@ -88,7 +88,7 @@ function AdminImageUploader({ label, value, onChange, placeholder = "Image URL..
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        className={`relative flex flex-col md:flex-row items-center gap-4 p-4 rounded-xl border-2 border-dashed transition-all ${
+        className={`relative flex flex-col md:flex-row items-start md:items-center gap-4 p-3 sm:p-4 rounded-xl border-2 border-dashed transition-all ${
           dragOver
             ? "border-amber-400/60 bg-amber-400/5 scale-[1.01]"
             : "border-white/10 bg-white/[0.02] hover:border-white/20"
@@ -131,7 +131,7 @@ function AdminImageUploader({ label, value, onChange, placeholder = "Image URL..
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-semibold transition-all whitespace-nowrap"
+                className="px-4 py-2.5 md:py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-semibold transition-all whitespace-nowrap"
               >
                 Choose File
               </button>
@@ -360,15 +360,15 @@ function ProductEditorContent() {
   }
 
   return (
-    <div className="flex flex-col gap-8 max-w-5xl">
+    <div className="flex flex-col gap-6 sm:gap-8 max-w-5xl">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-white/8">
-        <div className="flex items-center gap-3">
-          <Link href="/admin/products" className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/8">
+        <div className="flex items-start sm:items-center gap-3 min-w-0">
+          <Link href="/admin/products" className="shrink-0 p-2.5 sm:p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white">
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight truncate">
               {productId ? `Edit Product: ${name}` : "Create New Hair Product"}
             </h1>
             <p className="text-xs text-white/40 mt-0.5">Configure hair specs, AI reference assets, pricing, and prompt overrides.</p>
@@ -378,14 +378,14 @@ function ProductEditorContent() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 text-white font-bold text-xs shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+          className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 px-6 py-3 sm:py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 text-white font-bold text-xs shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Product
         </button>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto border-b border-white/8 pb-2">
+      {/* Navigation Tabs — swipeable, bleeding to the screen edge on phones */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-white/8 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
         {[
           { id: "basic", label: "Basic Info & Pricing" },
           { id: "specs", label: "Hair & Technical Specs" },
@@ -410,7 +410,7 @@ function ProductEditorContent() {
       </div>
 
       {/* Tab Contents */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-6">
+      <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-6">
         {/* TAB 1: Basic Info & Pricing */}
         {activeTab === "basic" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -535,7 +535,7 @@ function ProductEditorContent() {
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-white/70">Publication Status</label>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 {["published", "draft", "archived"].map((st) => (
                   <button
                     key={st}
@@ -553,7 +553,7 @@ function ProductEditorContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 border-t border-white/8">
               <label className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
                 <input type="checkbox" checked={isFeatured} onChange={(e) => setIsFeatured(e.target.checked)} className="rounded bg-white/10" />
                 <span className="text-xs font-semibold text-white">Featured Product</span>
@@ -577,14 +577,14 @@ function ProductEditorContent() {
         {/* TAB 4: AI Reference Assets */}
         {activeTab === "ai_assets" && (
           <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <p className="text-xs text-white/50">Provide multi-angle AI reference images to optimize photorealistic hairstyle synthesis.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setAiAssets([...aiAssets, { asset_type: "front", url: "" }])}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-semibold border border-white/10 transition-all"
+                className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-semibold border border-white/10 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" /> Add Asset
               </button>
@@ -595,7 +595,7 @@ function ProductEditorContent() {
                 <p className="text-xs text-white/30 py-4">No AI reference assets configured. Click "Add Asset" to add one.</p>
               ) : (
                 aiAssets.map((ast, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-white/[0.01] border border-white/5 flex flex-col gap-4">
+                  <div key={idx} className="p-3 sm:p-4 rounded-xl bg-white/[0.01] border border-white/5 flex flex-col gap-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">Asset #{idx + 1}</span>
                       <button
@@ -651,9 +651,9 @@ function ProductEditorContent() {
         {/* TAB: Hair Customization (Colour & Length) */}
         {activeTab === "customization" && (
           <div className="flex flex-col gap-6">
-            <label className="flex items-center justify-between gap-3 p-4 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
-              <div className="flex items-center gap-2.5">
-                <Palette className="w-4 h-4 text-amber-400" />
+            <label className="flex items-start sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
+              <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                <Palette className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0 text-amber-400" />
                 <div>
                   <p className="text-xs font-bold text-white">Enable Hair Colour &amp; Length Customization</p>
                   <p className="text-[10px] text-white/40 mt-0.5">
@@ -762,8 +762,8 @@ function ProductEditorContent() {
                 <p className="text-xs text-white/30 py-4">No version snapshots logged yet.</p>
               ) : (
                 versions.map((v) => (
-                  <div key={v.id} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between text-xs">
-                    <div>
+                  <div key={v.id} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                    <div className="min-w-0">
                       <span className="font-bold text-amber-300">Version v{v.version_number}</span>
                       <span className="text-white/40 ml-2">({new Date(v.created_at).toLocaleString()})</span>
                       <p className="text-white/70 text-[11px] mt-0.5">{v.change_summary}</p>
@@ -771,7 +771,7 @@ function ProductEditorContent() {
                     <button
                       onClick={() => handleRollback(v.id)}
                       disabled={saving}
-                      className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] flex items-center gap-1"
+                      className="shrink-0 px-3 py-2 sm:py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] flex items-center justify-center gap-1"
                     >
                       <RotateCcw className="w-3 h-3" /> Restore State
                     </button>

@@ -58,17 +58,17 @@ export default function AIConfigPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 max-w-4xl">
+    <div className="flex flex-col gap-6 sm:gap-8 max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">AI Configuration &amp; Funnel Levers</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">AI Configuration &amp; Funnel Levers</h1>
           <p className="text-xs text-white/50 mt-1">Configure model defaults, generation quotas, and gate messaging with zero code deployments.</p>
         </div>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 text-white font-semibold text-xs shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+          className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 text-white font-semibold text-xs shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {saving ? "Saving Changes…" : "Save Configuration"}
@@ -84,7 +84,7 @@ export default function AIConfigPage() {
       {/* Form Sections */}
       <div className="flex flex-col gap-6">
         {/* Gemini AI Settings */}
-        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-5">
+        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-5">
           <div className="flex items-center gap-2 pb-3 border-b border-white/8">
             <Sliders className="w-4 h-4 text-amber-400" />
             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Gemini Model Parameters</h2>
@@ -114,7 +114,7 @@ export default function AIConfigPage() {
         </div>
 
         {/* Funnel Quotas */}
-        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-5">
+        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-5">
           <div className="flex items-center gap-2 pb-3 border-b border-white/8">
             <RefreshCw className="w-4 h-4 text-rose-400" />
             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Generation Funnel Quotas (§2)</h2>
@@ -166,7 +166,7 @@ export default function AIConfigPage() {
         </div>
 
         {/* Feature Flags */}
-        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-5">
+        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-5">
           <div className="flex items-center gap-2 pb-3 border-b border-white/8">
             <Sliders className="w-4 h-4 text-amber-400" />
             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Feature Flags</h2>

@@ -58,9 +58,9 @@ export default function FunnelAnalyticsPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-8 max-w-4xl">
+    <div className="flex flex-col gap-6 sm:gap-8 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Gating Funnel Conversion Analytics</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Gating Funnel Conversion Analytics</h1>
         <p className="text-xs text-white/50 mt-1">Detailed breakdown of customer drop-offs and stage-by-stage conversion performance (§2, §7).</p>
       </div>
 
@@ -104,18 +104,18 @@ export default function FunnelAnalyticsPage() {
       {/* Conversion Funnel Pipeline Cards */}
       <div className="flex flex-col gap-4">
         {stages.map((st, idx) => (
-          <div key={idx} className="relative rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400/20 to-rose-500/20 border border-white/10 flex items-center justify-center font-bold text-amber-400 text-sm">
+          <div key={idx} className="relative rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-amber-400/20 to-rose-500/20 border border-white/10 flex items-center justify-center font-bold text-amber-400 text-sm">
                 S{idx}
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-sm font-bold text-white">{st.name}</h2>
                 <p className="text-xs text-white/40 mt-0.5">{st.desc}</p>
               </div>
             </div>
 
-            <div className="flex items-baseline gap-4">
+            <div className="flex items-baseline gap-3 sm:gap-4 shrink-0">
               <span className="text-2xl font-bold text-white">{st.count.toLocaleString()}</span>
               {st.rate && (
                 <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
@@ -128,7 +128,7 @@ export default function FunnelAnalyticsPage() {
       </div>
 
       {/* Summary insights */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-3">
+      <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-amber-400" />
           <span className="text-xs font-bold text-white uppercase tracking-wider">Funnel Conversion Insights</span>

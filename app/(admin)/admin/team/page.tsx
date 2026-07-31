@@ -130,11 +130,11 @@ export default function TeamAccessPage() {
   );
 
   return (
-    <div className="flex flex-col gap-8 max-w-5xl">
+    <div className="flex flex-col gap-6 sm:gap-8 max-w-5xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-          <Users className="w-6 h-6 text-amber-400" />
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
+          <Users className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 text-amber-400" />
           Team &amp; Access
         </h1>
         <p className="text-xs text-white/50 mt-1">
@@ -157,7 +157,7 @@ export default function TeamAccessPage() {
       {/* Create Admin */}
       <form
         onSubmit={handleCreate}
-        className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-5"
+        className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-5"
       >
         <div className="flex items-center gap-2 pb-3 border-b border-white/8">
           <UserPlus className="w-4 h-4 text-amber-400" />
@@ -224,14 +224,14 @@ export default function TeamAccessPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-[11px] text-white/35 flex items-center gap-1.5">
-            <KeyRound className="w-3 h-3" /> Share the temporary password securely; ask them to change it after first login.
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <p className="text-[11px] text-white/35 flex items-start gap-1.5">
+            <KeyRound className="w-3 h-3 shrink-0 mt-0.5" /> Share the temporary password securely; ask them to change it after first login.
           </p>
           <button
             type="submit"
             disabled={creating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 text-white font-semibold text-xs shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shrink-0"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 text-white font-semibold text-xs shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shrink-0"
           >
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
             {creating ? "Creating…" : "Create Admin"}
@@ -241,8 +241,8 @@ export default function TeamAccessPage() {
 
       {/* Team List */}
       <div className="rounded-2xl bg-white/[0.03] border border-white/8 overflow-hidden">
-        <div className="flex items-center gap-2 px-6 py-4 border-b border-white/8">
-          <Users className="w-4 h-4 text-rose-400" />
+        <div className="flex items-center gap-2 px-4 sm:px-6 py-4 border-b border-white/8">
+          <Users className="w-4 h-4 shrink-0 text-rose-400" />
           <h2 className="text-sm font-bold text-white uppercase tracking-wider">
             Current Admins {!loading && `(${admins.length})`}
           </h2>
@@ -262,7 +262,7 @@ export default function TeamAccessPage() {
               return (
                 <div
                   key={a.id}
-                  className="flex flex-col md:flex-row md:items-center gap-4 px-6 py-4"
+                  className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 px-4 sm:px-6 py-4"
                 >
                   {/* Identity */}
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -299,12 +299,13 @@ export default function TeamAccessPage() {
                   </div>
 
                   {/* Controls */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 md:shrink-0">
                     <select
                       value={a.role}
                       disabled={busy || a.isSelf}
                       onChange={(e) => patchAdmin(a.id, { role: e.target.value as AdminRole })}
-                      className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label={`Role for ${a.name}`}
+                      className="flex-1 md:flex-none min-w-0 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {ROLE_OPTIONS.map((r) => (
                         <option key={r} value={r} className="bg-[#141414]">
@@ -321,7 +322,7 @@ export default function TeamAccessPage() {
                         })
                       }
                       title={a.isSelf ? "You can't change your own status" : undefined}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      className={`flex flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         a.status === "active"
                           ? "bg-white/5 hover:bg-red-500/10 border-white/10 hover:border-red-500/20 text-white/70 hover:text-red-400"
                           : "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-400"

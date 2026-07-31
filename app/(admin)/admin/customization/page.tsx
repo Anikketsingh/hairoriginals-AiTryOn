@@ -266,18 +266,18 @@ export default function CustomizationLibraryPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 max-w-6xl">
+    <div className="flex flex-col gap-6 sm:gap-8 max-w-6xl">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Hair Customization Library</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Hair Customization Library</h1>
         <p className="text-xs text-white/50 mt-1">
           Define attributes (Hair Colour, Hair Length, …) and their options once here, then choose which options each
           product offers on its Customization tab in the Product Editor.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 sm:gap-6">
         {/* Attributes column */}
-        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 flex flex-col gap-3 h-fit">
+        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-3 sm:p-4 flex flex-col gap-3 h-fit">
           <div className="flex items-center gap-2 px-1 pb-2 border-b border-white/8">
             <Layers className="w-3.5 h-3.5 text-amber-400" />
             <span className="text-xs font-bold text-white uppercase tracking-wider">Attributes</span>
@@ -336,7 +336,7 @@ export default function CustomizationLibraryPage() {
             <button
               onClick={handleCreateAttribute}
               disabled={creatingAttr}
-              className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white text-[11px] font-semibold transition-all disabled:opacity-40"
+              className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white text-[11px] font-semibold transition-all disabled:opacity-40"
             >
               {creatingAttr ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
               Add Attribute
@@ -345,14 +345,14 @@ export default function CustomizationLibraryPage() {
         </div>
 
         {/* Options column */}
-        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-6">
+        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-6 min-w-0">
           {!selected ? (
             <p className="text-xs text-white/30 py-8 text-center">Select or create an attribute to manage its options.</p>
           ) : (
             <>
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/8">
-                <div className="flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-amber-400" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <Palette className="w-4 h-4 shrink-0 text-amber-400" />
                   <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <input
                       type="text"
@@ -369,11 +369,12 @@ export default function CustomizationLibraryPage() {
                     />
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 md:shrink-0">
                   <select
                     value={selected.ui_type}
                     onChange={(e) => updateAttrField(selected.id, "ui_type", e.target.value as CustomizationAttribute["ui_type"])}
-                    className="px-2.5 py-1.5 rounded-lg bg-black border border-white/10 text-white text-[11px] focus:outline-none"
+                    aria-label="Attribute UI type"
+                    className="px-2.5 py-2 sm:py-1.5 rounded-lg bg-black border border-white/10 text-white text-[11px] focus:outline-none"
                   >
                     {UI_TYPES.map((t) => (
                       <option key={t} value={t}>{t}</option>
@@ -392,7 +393,7 @@ export default function CustomizationLibraryPage() {
                   <button
                     onClick={() => handleSaveAttribute(selected)}
                     disabled={savingAttrId === selected.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white text-[11px] font-semibold transition-all disabled:opacity-40"
+                    className="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white text-[11px] font-semibold transition-all disabled:opacity-40"
                   >
                     {savingAttrId === selected.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                     Save
@@ -417,26 +418,28 @@ export default function CustomizationLibraryPage() {
                     <p className="text-xs text-white/30 py-2">No options yet. Add the first one below.</p>
                   )}
                   {options.map((opt) => (
-                    <div key={opt.id} className="p-4 rounded-xl bg-white/[0.01] border border-white/5 flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                    <div key={opt.id} className="p-3.5 sm:p-4 rounded-xl bg-white/[0.01] border border-white/5 flex flex-col gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
                           {selected.ui_type === "swatch" && (
                             <input
                               type="color"
                               value={opt.swatch_hex ?? "#000000"}
                               onChange={(e) => updateOptField(opt.id, "swatch_hex", e.target.value)}
-                              className="w-6 h-6 rounded-full border border-white/20 bg-transparent cursor-pointer"
+                              aria-label={`Swatch colour for ${opt.label}`}
+                              className="w-7 h-7 shrink-0 rounded-full border border-white/20 bg-transparent cursor-pointer"
                             />
                           )}
                           <input
                             type="text"
                             value={opt.label}
                             onChange={(e) => updateOptField(opt.id, "label", e.target.value)}
-                            className="bg-transparent text-xs font-bold text-white focus:outline-none border-b border-transparent focus:border-amber-400/50"
+                            aria-label="Option label"
+                            className="min-w-0 flex-1 sm:flex-none bg-transparent text-xs font-bold text-white focus:outline-none border-b border-transparent focus:border-amber-400/50"
                           />
-                          <span className="text-[10px] text-white/30 font-mono">{opt.value}</span>
+                          <span className="shrink-0 text-[10px] text-white/30 font-mono truncate">{opt.value}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <label className="flex items-center gap-1.5 text-[10px] text-white/50 cursor-pointer">
                             <input
                               type="checkbox"
@@ -479,7 +482,7 @@ export default function CustomizationLibraryPage() {
                   ))}
 
                   {/* Add option */}
-                  <div className="p-4 rounded-xl border border-dashed border-white/10 flex flex-col gap-3">
+                  <div className="p-3.5 sm:p-4 rounded-xl border border-dashed border-white/10 flex flex-col gap-3">
                     <div className="flex items-center gap-2 text-[11px] font-bold text-white/50 uppercase tracking-wider">
                       <Plus className="w-3.5 h-3.5" /> Add Option
                     </div>
@@ -521,7 +524,7 @@ export default function CustomizationLibraryPage() {
                       <button
                         onClick={handleCreateOption}
                         disabled={creatingOpt}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 text-white font-bold text-xs shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                        className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 text-white font-bold text-xs shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
                       >
                         {creatingOpt ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                         Add Option

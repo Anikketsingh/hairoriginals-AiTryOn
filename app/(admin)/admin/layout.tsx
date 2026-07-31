@@ -19,12 +19,15 @@ export default async function AdminLayout({
     redirect("/admin/login");
   }
 
+  // Below lg the sidebar collapses into a sticky top bar + drawer, so the
+  // shell only becomes a row at lg. min-w-0 keeps wide children (tables,
+  // horizontal scrollers) from stretching the flex row past the viewport.
   return (
-    <div className="min-h-screen flex bg-[#060606] text-white">
+    <div className="admin-ui min-h-screen bg-[#060606] text-white lg:flex">
       <AdminSidebar admin={admin} />
-      <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto">
+      <main className="flex-1 min-w-0 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pb-safe">
         {children}
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag, Star, ArrowUpDown, Flame } from "lucide-react";
 
 interface Lead {
@@ -117,6 +117,20 @@ export default function SalesCRMPage() {
   const [newStatus, setNewStatus] = useState("contacted");
   const [creditCount, setCreditCount] = useState(2);
   const [submitting, setSubmitting] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Below lg the workspace sits *under* the leads list rather than beside it,
+   * so a tap on a lead would otherwise change a panel that's off-screen.
+   */
+  const selectLead = useCallback((lead: Lead) => {
+    setActiveLead(lead);
+    if (typeof window !== "undefined" && !window.matchMedia("(min-width: 1024px)").matches) {
+      requestAnimationFrame(() =>
+        workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      );
+    }
+  }, []);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -214,15 +228,15 @@ export default function SalesCRMPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6 sm:gap-8">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Sales Agent CRM &amp; Lead Console</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Sales Agent CRM &amp; Lead Console</h1>
         <p className="text-xs text-white/50 mt-1">Manage Stage 3 qualified leads, record stylist contact logs, and grant Stage 4 bonus try-ons.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Leads List */}
-        <div className="lg:col-span-1 rounded-2xl bg-white/[0.03] border border-white/8 p-4 flex flex-col gap-3 max-h-[700px] overflow-y-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        {/* Leads List — capped short on phones so the workspace below stays reachable */}
+        <div className="lg:col-span-1 rounded-2xl bg-white/[0.03] border border-white/8 p-3 sm:p-4 flex flex-col gap-3 max-h-[60vh] lg:max-h-[700px] overflow-y-auto">
           <div className="flex items-center justify-between pb-2 border-b border-white/8">
             <span className="text-xs font-bold text-white uppercase tracking-wider">Active Leads ({leads.length})</span>
           </div>
@@ -302,16 +316,16 @@ export default function SalesCRMPage() {
               return (
                 <div
                   key={l.id}
-                  onClick={() => setActiveLead(l)}
+                  onClick={() => selectLead(l)}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
                     isSelected
                       ? "bg-amber-400/10 border-amber-400 shadow-md"
                       : "bg-white/5 border-white/5 hover:border-white/15"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white">{l.phone || "Guest Session Lead"}</span>
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-white truncate">{l.phone || "Guest Session Lead"}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {hasReturned(l) && (
                         <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold uppercase">
                           <Flame className="w-3 h-3" /> Returned
@@ -344,26 +358,30 @@ export default function SalesCRMPage() {
         </div>
 
         {/* Lead Workspace & Agent Action Drawer */}
-        <div className="lg:col-span-2 rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-6">
+        <div
+          ref={workspaceRef}
+          className="lg:col-span-2 scroll-mt-20 lg:scroll-mt-0 rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-6"
+        >
           {activeLead ? (
             <>
               {/* Active Lead Header */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-white/8 gap-4">
-                <div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between pb-4 border-b border-white/8 gap-4">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <UserCheck className="w-5 h-5 text-amber-400" />
-                    <h2 className="text-base font-bold text-white">{activeLead.phone || "Guest Session Lead"}</h2>
+                    <UserCheck className="w-5 h-5 shrink-0 text-amber-400" />
+                    <h2 className="text-base font-bold text-white truncate">{activeLead.phone || "Guest Session Lead"}</h2>
                   </div>
-                  <p className="text-xs text-white/40 mt-0.5">
+                  <p className="text-xs text-white/40 mt-0.5 truncate">
                     Lead ID: <span className="font-mono">{activeLead.id}</span>
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-white/50">Status:</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="hidden sm:inline text-xs text-white/50">Status:</span>
                   <select
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/10 text-white text-xs font-semibold focus:outline-none"
+                    aria-label="Lead status"
+                    className="flex-1 sm:flex-none min-w-0 px-3 py-2 sm:py-1.5 rounded-lg bg-white/10 border border-white/10 text-white text-xs font-semibold focus:outline-none"
                   >
                     <option value="new" className="bg-black">New</option>
                     <option value="contacted" className="bg-black">Contacted</option>
@@ -374,7 +392,7 @@ export default function SalesCRMPage() {
                   <button
                     onClick={() => handleRecordAction("status_change")}
                     disabled={submitting}
-                    className="px-3 py-1.5 rounded-lg bg-amber-400 text-black text-xs font-bold hover:bg-amber-300"
+                    className="shrink-0 px-4 py-2 sm:py-1.5 rounded-lg bg-amber-400 text-black text-xs font-bold hover:bg-amber-300"
                   >
                     Update
                   </button>
@@ -528,7 +546,7 @@ export default function SalesCRMPage() {
                   <div className="flex flex-col gap-2">
                     {detail.feedback.map((f) => (
                       <div key={f.id} className="rounded-xl border border-white/5 bg-white/5 p-3 flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           <span className="text-base">
                             {RATING_EMOJI[f.experience_rating] ?? "•"}{" "}
                             <span className="text-white/60 text-xs font-semibold align-middle">{f.experience_rating}/4</span>
@@ -561,7 +579,7 @@ export default function SalesCRMPage() {
                   ) : (
                     activeLead.agent_actions?.map((a) => (
                       <div key={a.id} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1 text-xs">
-                        <div className="flex items-center justify-between text-white/50">
+                        <div className="flex items-center justify-between gap-2 flex-wrap text-white/50">
                           <span className="font-semibold uppercase text-[10px] text-amber-400">{a.action_type}</span>
                           <span>{new Date(a.created_at).toLocaleString()}</span>
                         </div>

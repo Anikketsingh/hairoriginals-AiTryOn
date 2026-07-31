@@ -160,6 +160,15 @@ body {
   animation: overlay-in 0.2s ease-out forwards;
 }
 
+/* Admin nav drawer (mobile) */
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 @keyframes shimmer {
   from { transform: translateX(-100%); }
   to { transform: translateX(100%); }
@@ -197,6 +206,24 @@ body {
 @keyframes twinkle {
   0%, 100% { opacity: 0.35; transform: scale(0.6); }
   50%      { opacity: 1; transform: scale(1); }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Admin console — mobile ergonomics
+   ───────────────────────────────────────────────────────────── */
+
+/* iOS Safari zooms the viewport whenever a focused control's font-size is
+   under 16px. The console's controls are 11–12px by design, which made every
+   tap on a field jerk the layout, so on phones the interactive text (not the
+   surrounding chrome) is bumped to the no-zoom threshold. Checkbox / radio /
+   colour inputs are excluded — font-size changes their painted box size. */
+@media (max-width: 640px) {
+  .admin-ui input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  .admin-ui select,
+  .admin-ui textarea {
+    font-size: 16px;
+    line-height: 1.4;
+  }
 }
 
 /* ── Reduced motion ──────────────────────────────────────── */

@@ -42,30 +42,30 @@ export default function AdminDashboardPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6 sm:gap-8">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Executive Dashboard Overview</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Executive Dashboard Overview</h1>
         <p className="text-xs text-white/50 mt-1">Real-time platform usage, AI model health, and funnel lead metrics.</p>
       </div>
 
       {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {cards.map((card, idx) => {
           const Icon = card.icon;
           return (
             <div
               key={idx}
-              className="relative rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col justify-between overflow-hidden group hover:border-white/20 transition-all"
+              className="relative rounded-2xl bg-white/[0.03] border border-white/8 p-5 sm:p-6 flex flex-col justify-between overflow-hidden group hover:border-white/20 transition-all"
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between gap-3 mb-4">
                 <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">{card.label}</span>
-                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center text-black shadow-md`}>
+                <div className={`w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center text-black shadow-md`}>
                   <Icon className="w-5 h-5 stroke-[2.5]" />
                 </div>
               </div>
-              <div className="flex items-baseline justify-between">
-                <span className="text-3xl font-bold text-white tracking-tight">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   {loading ? "…" : card.value.toLocaleString()}
                 </span>
                 <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-0.5">
@@ -78,7 +78,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Platform Architecture & Active Funnel Status */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-4">
+      <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-5 sm:p-6 flex flex-col gap-4">
         <h2 className="text-sm font-bold text-white uppercase tracking-wider">Funnel &amp; AI Health Overview</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-white/60">
           <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-2">

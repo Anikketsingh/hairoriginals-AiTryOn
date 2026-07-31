@@ -63,24 +63,24 @@ export default function PromptLibraryPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 max-w-4xl">
+    <div className="flex flex-col gap-6 sm:gap-8 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Prompt Library &amp; Versioning</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Prompt Library &amp; Versioning</h1>
         <p className="text-xs text-white/50 mt-1">Manage system prompts for AI try-on generation. Edits automatically increment template versions.</p>
       </div>
 
       <div className="flex flex-col gap-6">
         {prompts.map((p) => (
-          <div key={p.id} className="rounded-2xl bg-white/[0.03] border border-white/8 p-6 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <BookOpen className="w-4 h-4 text-amber-400" />
+          <div key={p.id} className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+              <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                <BookOpen className="w-4 h-4 shrink-0 text-amber-400" />
                 <span className="text-sm font-bold text-white">{p.name}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 font-mono text-white/60">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 font-mono text-white/60 truncate">
                   slug: {p.slug}
                 </span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 <span className="text-xs text-amber-400/80 font-medium flex items-center gap-1">
                   <History className="w-3.5 h-3.5" /> v{p.version}
                 </span>
@@ -106,7 +106,7 @@ export default function PromptLibraryPage() {
               <button
                 onClick={() => handleUpdatePrompt(p.id, p.template)}
                 disabled={savingId === p.id}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold transition-all disabled:opacity-40"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold transition-all disabled:opacity-40"
               >
                 {savingId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 Save Prompt Version

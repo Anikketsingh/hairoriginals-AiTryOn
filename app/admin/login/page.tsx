@@ -37,8 +37,8 @@ export default function AdminLoginPage() {
   );
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#060606] px-6">
-      <div className="w-full max-w-sm rounded-2xl border border-white/8 bg-white/[0.03] p-8">
+    <div className="admin-ui flex min-h-screen items-center justify-center bg-[#060606] px-4 py-10 sm:px-6 pt-safe pb-safe">
+      <div className="w-full max-w-sm rounded-2xl border border-white/8 bg-white/[0.03] p-6 sm:p-8">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 via-orange-400 to-rose-500 shadow-lg shadow-rose-500/25">
             <Sparkles className="h-5 w-5 text-white" />
