@@ -10,6 +10,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { resolveSessionStatus } from "@/lib/funnel";
+import { setDeviceCookie } from "@/lib/device-cookie";
 
 export async function GET(
   _req: NextRequest,
@@ -31,7 +32,12 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(status);
+    // Anchors installed-base users (whose session predates the device
+    // cookie) onto it the next time the browser checks its status — not
+    // just new visitors going through POST /api/sessions.
+    const response = NextResponse.json(status);
+    setDeviceCookie(response, token);
+    return response;
   } catch (err) {
     console.error("[/api/sessions/[token]] Error:", err);
     return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });

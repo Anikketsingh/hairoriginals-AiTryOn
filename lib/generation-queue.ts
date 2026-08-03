@@ -19,7 +19,7 @@ import {
   resolveProductCustomizations,
   type ResolvedCustomization,
 } from "@/lib/customization";
-import { touchSession } from "@/lib/funnel";
+import { touchSession, releaseCredit } from "@/lib/funnel";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import { ensureLeadForSession, refreshLeadActivity } from "@/lib/leads";
@@ -211,8 +211,21 @@ export async function processGenerationAsync({
   demo,
 }: ProcessJobParams): Promise<void> {
   const startTime = Date.now();
+  // Fetched up front (before anything that can throw) so the catch block
+  // below can always refund it — credits are debited in /api/generate
+  // before this job even starts, so a failure here must give the try-on
+  // back rather than silently burning it against the guest's 1 or the
+  // user's 5.
+  let creditId: string | null = null;
 
   try {
+    const { data: creditRow } = await supabaseAdmin
+      .from("generations")
+      .select("credit_id")
+      .eq("id", generationId)
+      .single();
+    creditId = creditRow?.credit_id ?? null;
+
     // 1. Mark status as processing
     await supabaseAdmin
       .from("generations")
@@ -369,8 +382,16 @@ export async function processGenerationAsync({
         status: "failed",
         error_log: errorMessage,
         completed_at: new Date().toISOString(),
+        // Cleared alongside the refund so a later reconciler pass (see
+        // the stale-job self-heal in /api/generate/status/[id]) can't
+        // find this credit_id again and double-refund it.
+        ...(creditId ? { credit_id: null } : {}),
       })
       .eq("id", generationId);
+
+    if (creditId) {
+      await releaseCredit(creditId);
+    }
 
     await recordAnalyticsEvent(
       "generate_failed",

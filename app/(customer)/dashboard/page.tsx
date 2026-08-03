@@ -114,12 +114,23 @@ export default function CustomerDashboardPage() {
     } catch {
       // ignore — best effort
     }
-    // Drop the device-session token (which is linked to the user_id server-side)
-    // and fingerprint so we return to a fresh guest session on reload.
-    localStorage.removeItem("hair_session_token");
-    localStorage.removeItem("hair_fp");
+    // Detach the device session from the account server-side, but keep the
+    // device token itself — it already spent its guest_free credit, and
+    // deleting it here would just mint a fresh one on the next page load.
+    if (sessionToken) {
+      try {
+        await fetch("/api/sessions/unlink", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionToken }),
+        });
+      } catch {
+        // ignore — best effort; the account link is a minor staleness risk,
+        // not a security boundary
+      }
+    }
     window.location.assign("/");
-  }, []);
+  }, [sessionToken]);
 
   const creditsRemaining = sessionStatus?.creditsRemaining ?? 0;
   const stage = sessionStatus?.stage ?? 0;
@@ -134,9 +145,7 @@ export default function CustomerDashboardPage() {
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-sm font-bold text-ink shadow-[var(--shadow-card)]">
               <Zap className="h-4 w-4 text-brand" />
-              {sessionStatus?.userId
-                ? "Unlimited try-ons"
-                : `${creditsRemaining} ${creditsRemaining === 1 ? "try-on" : "try-ons"} left`}
+              {`${creditsRemaining} ${creditsRemaining === 1 ? "try-on" : "try-ons"} left`}
             </span>
             {sessionStatus?.userId && (
               <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-semibold text-success">

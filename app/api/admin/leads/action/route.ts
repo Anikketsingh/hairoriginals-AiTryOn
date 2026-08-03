@@ -14,6 +14,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { grantCredits } from "@/lib/funnel";
 import { requireAdmin } from "@/lib/admin-auth";
 import { parseJsonBody } from "@/lib/validate";
+import { areAgentCreditGrantsAllowed, getMaxAgentGrantPerAction } from "@/lib/settings";
 
 const bodySchema = z.object({
   leadId: z.string().uuid("leadId must be a valid ID."),
@@ -63,9 +64,29 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. If actionType is credit_grant (Stage 4 grant by agent)
+    let grantedAmount: number | null = null;
     if (actionType === "credit_grant") {
+      if (!(await areAgentCreditGrantsAllowed())) {
+        return NextResponse.json(
+          { error: "Agent credit grants are currently disabled." },
+          { status: 403 }
+        );
+      }
+
+      const maxGrant = await getMaxAgentGrantPerAction();
       const amount = Number(creditAmount) || 1;
-      await grantCredits(lead.session_id, lead.user_id, "agent_grant", amount, admin.id);
+      if (amount > maxGrant) {
+        return NextResponse.json(
+          { error: `Cannot grant more than ${maxGrant} credits in a single action.` },
+          { status: 400 }
+        );
+      }
+
+      const creditId = await grantCredits(lead.session_id, lead.user_id, "agent_grant", amount, admin.id);
+      if (!creditId) {
+        return NextResponse.json({ error: "Failed to grant credits." }, { status: 500 });
+      }
+      grantedAmount = amount;
     }
 
     // 3. If status is provided, update lead status
@@ -84,7 +105,7 @@ export async function POST(request: NextRequest) {
         lead_id: leadId,
         action_type: actionType,
         notes: notes || null,
-        credit_amount: actionType === "credit_grant" ? Number(creditAmount) || 1 : null,
+        credit_amount: grantedAmount,
       })
       .select()
       .single();

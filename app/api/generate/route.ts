@@ -5,7 +5,7 @@ import {
   getFunnelStage,
   consumeCredit,
 } from "@/lib/funnel";
-import { getLoginGateMessage } from "@/lib/settings";
+import { getLoginGateMessage, getAgentGateMessage, isAgentGateEnabled } from "@/lib/settings";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { enqueueGenerationJob } from "@/lib/jobs/runner";
 import { getClientIp, checkGenerateRateLimit } from "@/lib/rate-limit";
@@ -124,7 +124,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Resolve funnel stage
+    // Resolve funnel stage. Guests are always capped; the stage-3 agent gate
+    // for signed-in users can be switched off from the admin dashboard
+    // (agent_gate_enabled) without a deploy, restoring unlimited generations
+    // for anyone who has signed in.
+    const agentGateEnabled = await isAgentGateEnabled();
+    const capEnforced = !userId || agentGateEnabled;
+
     const stage = sessionId
       ? await getFunnelStage(sessionId, userId)
       : 1;
@@ -138,16 +144,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Signed-in users have unlimited try-ons: no credit is consumed and the
-    // generation is recorded with credit_id = null. Guests (stage 0) still
-    // consume one of their free credits atomically before queueing.
+    if (stage === 3 && capEnforced) {
+      await recordAnalyticsEvent("gate_shown", { gate: "agent" }, sessionId, userId);
+      const message = await getAgentGateMessage();
+      return NextResponse.json(
+        { gate: "agent", message, stage: 3 },
+        { status: 402 }
+      );
+    }
+
+    // Every capped request (guests always, signed-in users unless the agent
+    // gate is disabled) must atomically consume a credit before queueing.
     let creditId: string | null = null;
-    if (!userId) {
+    if (capEnforced) {
       creditId = sessionId ? await consumeCredit(sessionId, userId) : null;
       if (!creditId) {
-        const message = await getLoginGateMessage();
+        // Exhausted (or a race lost against a concurrent request) — gate on
+        // identity: guests re-hit the login gate, signed-in users the agent gate.
+        const message = userId ? await getAgentGateMessage() : await getLoginGateMessage();
         return NextResponse.json(
-          { gate: "login", message, stage: 1 },
+          { gate: userId ? "agent" : "login", message, stage: userId ? 3 : 1 },
           { status: 402 }
         );
       }

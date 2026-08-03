@@ -93,6 +93,7 @@ interface LeadDetail {
   looks: LeadLook[];
   interestedProducts: InterestedProduct[];
   feedback: LeadFeedback[];
+  credits: { remaining: number; used: number };
 }
 
 const RATING_EMOJI: Record<number, string> = { 1: "😞", 2: "😐", 3: "🙂", 4: "😍" };
@@ -117,6 +118,7 @@ export default function SalesCRMPage() {
   const [newStatus, setNewStatus] = useState("contacted");
   const [creditCount, setCreditCount] = useState(2);
   const [submitting, setSubmitting] = useState(false);
+  const [grantError, setGrantError] = useState<string | null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -158,41 +160,42 @@ export default function SalesCRMPage() {
     return () => clearTimeout(t);
   }, [fetchLeads]);
 
-  // Load the selected customer's looks + interested products.
+  // Load the selected customer's looks + interested products + credit balance.
   const activeLeadId = activeLead?.id ?? null;
+
+  const fetchLeadDetail = useCallback(async (leadId: string | null) => {
+    if (!leadId) {
+      setDetail(null);
+      return;
+    }
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/admin/leads/${leadId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDetail({
+          looks: data.looks ?? [],
+          interestedProducts: data.interestedProducts ?? [],
+          feedback: data.feedback ?? [],
+          credits: data.credits ?? { remaining: 0, used: 0 },
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load lead detail:", err);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!activeLeadId) {
-        if (!cancelled) setDetail(null);
-        return;
-      }
-      setDetailLoading(true);
-      try {
-        const res = await fetch(`/api/admin/leads/${activeLeadId}`);
-        if (res.ok && !cancelled) {
-          const data = await res.json();
-          setDetail({
-            looks: data.looks ?? [],
-            interestedProducts: data.interestedProducts ?? [],
-            feedback: data.feedback ?? [],
-          });
-        }
-      } catch (err) {
-        console.error("Failed to load lead detail:", err);
-      } finally {
-        if (!cancelled) setDetailLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeLeadId]);
+    fetchLeadDetail(activeLeadId);
+  }, [activeLeadId, fetchLeadDetail]);
 
   const handleRecordAction = useCallback(
     async (actionType: "note" | "call" | "credit_grant" | "status_change") => {
       if (!activeLead) return;
       setSubmitting(true);
+      setGrantError(null);
       try {
         const res = await fetch("/api/admin/leads/action", {
           method: "POST",
@@ -207,15 +210,19 @@ export default function SalesCRMPage() {
         });
         if (res.ok) {
           setNoteText("");
-          await fetchLeads();
+          await Promise.all([fetchLeads(), fetchLeadDetail(activeLead.id)]);
+        } else if (actionType === "credit_grant") {
+          const data = await res.json().catch(() => null);
+          setGrantError(data?.error ?? "Failed to grant credits.");
         }
       } catch (err) {
         console.error("Failed to submit agent action:", err);
+        if (actionType === "credit_grant") setGrantError("Failed to grant credits.");
       } finally {
         setSubmitting(false);
       }
     },
-    [activeLead, noteText, newStatus, creditCount, fetchLeads]
+    [activeLead, noteText, newStatus, creditCount, fetchLeads, fetchLeadDetail]
   );
 
   if (loading) {
@@ -431,6 +438,11 @@ export default function SalesCRMPage() {
                     <p className="text-[11px] text-white/50 mt-1">
                       Manually grant additional try-on credits to this customer during or after your phone consultation.
                     </p>
+                    <p className="text-[11px] text-white/70 mt-2 font-semibold">
+                      {detail
+                        ? `${detail.credits.remaining} try-on${detail.credits.remaining === 1 ? "" : "s"} remaining`
+                        : "—"}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -449,6 +461,9 @@ export default function SalesCRMPage() {
                       Grant +{creditCount} Try-Ons
                     </button>
                   </div>
+                  {grantError && (
+                    <p className="text-[11px] text-rose-400 font-medium">{grantError}</p>
+                  )}
                 </div>
               </div>
 

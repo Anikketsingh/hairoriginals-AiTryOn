@@ -11,10 +11,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { grantCredits } from "@/lib/funnel";
+import { grantCredits, getSessionByToken, findGuestSessionByFingerprint } from "@/lib/funnel";
 import { getGuestFreeGenerations } from "@/lib/settings";
 import { getClientIp, checkSessionRateLimit } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
+import { getDeviceCookie, setDeviceCookie } from "@/lib/device-cookie";
 
 // Body is optional in practice (a bare POST with no body is valid — the
 // fingerprint just won't be captured), so this is validated directly with
@@ -60,6 +61,31 @@ export async function POST(request: NextRequest) {
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
+    // ── Resolve an existing device before minting a new one ────
+    // The httpOnly cookie is authoritative (page JS can't clear it, unlike
+    // localStorage); the fingerprint is only a client-supplied hint used
+    // when the cookie is missing (e.g. a first request from a browser that
+    // already has a session_token in localStorage from before this cookie
+    // existed). Either way: no cookie/fingerprint match means no new
+    // guest_free grant — that's what makes the 1 free try-on stick.
+    const cookieToken = getDeviceCookie(request);
+    const existing = cookieToken
+      ? await getSessionByToken(cookieToken)
+      : await findGuestSessionByFingerprint(fingerprintHash);
+
+    if (existing) {
+      const response = NextResponse.json(
+        {
+          sessionToken: existing.session_token,
+          sessionId: existing.id,
+          creditsGranted: 0,
+        },
+        { status: 200 }
+      );
+      setDeviceCookie(response, existing.session_token);
+      return response;
+    }
+
     // Create device session
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("device_sessions")
@@ -83,7 +109,7 @@ export async function POST(request: NextRequest) {
     await grantCredits(session.id, null, "guest_free", guestCredits);
     await recordAnalyticsEvent("session_created", { creditsGranted: guestCredits }, session.id, null);
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         sessionToken: session.session_token,
         sessionId: session.id,
@@ -91,6 +117,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
+    setDeviceCookie(response, session.session_token);
+    return response;
   } catch (err) {
     console.error("[/api/sessions] Unexpected error:", err);
     return NextResponse.json(

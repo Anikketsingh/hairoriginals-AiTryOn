@@ -151,6 +151,16 @@ export async function isAgentGateEnabled(): Promise<boolean> {
   return (await getSetting("agent_gate_enabled") as boolean) ?? true;
 }
 
+/** Whether Stage 4 (manual agent credit grants) is available at all. */
+export async function areAgentCreditGrantsAllowed(): Promise<boolean> {
+  return (await getSetting("allow_agent_credit_grants") as boolean) ?? true;
+}
+
+/** Maximum credits a sales agent can grant to a customer in a single admin action. */
+export async function getMaxAgentGrantPerAction(): Promise<number> {
+  return (await getSetting("max_agent_grant_per_action") as number) ?? 5;
+}
+
 export async function getLoginGateMessage(): Promise<string> {
   return (
     (await getSetting("login_gate_message") as string) ??

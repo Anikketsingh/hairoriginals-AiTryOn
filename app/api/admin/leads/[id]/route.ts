@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { toPublicStorageUrl } from "@/lib/supabase/public-url";
+import { getCreditBalance } from "@/lib/funnel";
 
 const SIGNED_URL_TTL_SECONDS = 10 * 60;
 
@@ -138,7 +139,9 @@ export async function GET(
       .eq("lead_id", id)
       .order("created_at", { ascending: false });
 
-    return NextResponse.json({ lead, looks, interestedProducts, feedback: feedback ?? [] });
+    const credits = await getCreditBalance(lead.session_id, lead.user_id);
+
+    return NextResponse.json({ lead, looks, interestedProducts, feedback: feedback ?? [], credits });
   } catch (err) {
     console.error("[/api/admin/leads/[id]] Error:", err);
     return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });

@@ -82,13 +82,9 @@ export async function getFunnelStage(
   sessionId: string | null,
   userId: string | null
 ): Promise<FunnelStage> {
-  // Signed-in users have unlimited try-ons — they never hit the stage-3 agent
-  // gate. Their CRM lead + agent routing is created at sign-in instead (see
-  // lib/leads.ts + app/api/auth/complete). Guests still get the 1 free try-on
-  // then the stage-1 login gate.
-  if (userId) return 2;
   const { remaining } = await getCreditBalance(sessionId, userId);
-  return remaining > 0 ? 0 : 1;
+  if (remaining > 0) return userId ? 2 : 0;
+  return userId ? 3 : 1;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -150,6 +146,41 @@ export async function consumeCredit(
 
   // data is the UUID of the consumed credit row, or null
   return (data as string | null) ?? null;
+}
+
+// ──────────────────────────────────────────────────────────────
+// Refund a consumed credit (generation failed after it was debited)
+// ──────────────────────────────────────────────────────────────
+
+export async function releaseCredit(creditId: string): Promise<void> {
+  const { error } = await supabaseAdmin.rpc("release_one_credit", {
+    p_credit_id: creditId,
+  });
+  if (error) {
+    console.error("[funnel] releaseCredit RPC error:", error.message);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Find the oldest device session for a given fingerprint hash, so a
+// returning guest (same fingerprint, lost/cleared token) resolves back to
+// the device that already spent its free credit instead of minting a new
+// one. Only a hint — the httpOnly device cookie is authoritative.
+// ──────────────────────────────────────────────────────────────
+
+export async function findGuestSessionByFingerprint(
+  fingerprintHash: string
+): Promise<{ id: string; session_token: string; user_id: string | null } | null> {
+  const { data, error } = await supabaseAdmin
+    .from("device_sessions")
+    .select("id, session_token, user_id")
+    .eq("fingerprint_hash", fingerprintHash)
+    .order("first_seen", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as { id: string; session_token: string; user_id: string | null };
 }
 
 // ──────────────────────────────────────────────────────────────

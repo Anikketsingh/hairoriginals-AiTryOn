@@ -10,7 +10,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { getSessionByToken } from "@/lib/funnel";
+import { getSessionByToken, releaseCredit } from "@/lib/funnel";
 import { toPublicStorageUrl } from "@/lib/supabase/public-url";
 
 // Self-healing insurance independent of the job runner: if a row has sat in
@@ -46,7 +46,7 @@ export async function GET(
     const { data: generation, error } = await supabaseAdmin
       .from("generations")
       .select(
-        "id, session_id, user_id, status, result_image_path, result_mime_type, error_log, duration_ms, created_at, completed_at"
+        "id, session_id, user_id, status, credit_id, result_image_path, result_mime_type, error_log, duration_ms, created_at, completed_at"
       )
       .eq("id", id)
       .single();
@@ -76,15 +76,26 @@ export async function GET(
           status: "failed",
           error_log: "Generation timed out.",
           completed_at: new Date().toISOString(),
+          // Cleared alongside the refund below so a second poll past the
+          // stale threshold (or the job runner's own catch block, if it
+          // eventually does complete) can't double-refund this credit.
+          ...(current.credit_id ? { credit_id: null } : {}),
         })
         .eq("id", id)
         .in("status", ["pending", "processing"]) // no-op if it just finished
         .select(
-          "id, session_id, user_id, status, result_image_path, result_mime_type, error_log, duration_ms, created_at, completed_at"
+          "id, session_id, user_id, status, credit_id, result_image_path, result_mime_type, error_log, duration_ms, created_at, completed_at"
         )
         .single();
 
-      if (reconciled) current = reconciled;
+      // Only refund if this request actually won the race to transition the
+      // row (reconciled is null if it had already completed/failed).
+      if (reconciled) {
+        current = reconciled;
+        if (generation.credit_id) {
+          await releaseCredit(generation.credit_id);
+        }
+      }
     }
 
     let resultUrl: string | null = null;
