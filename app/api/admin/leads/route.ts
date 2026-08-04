@@ -10,22 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin-auth";
-
-/**
- * Sort options the CRM list offers. The default, `recent_activity`, surfaces
- * customers who've come back and generated more looks (last_activity_at is
- * bumped only on customer try-ons — see lib/leads.ts), which is the whole
- * point of the sort: returning leads bubble to the top.
- */
-const SORT_OPTIONS = {
-  recent_activity: { column: "last_activity_at", ascending: false },
-  newest: { column: "created_at", ascending: false },
-  oldest: { column: "created_at", ascending: true },
-  most_tryons: { column: "generations_count", ascending: false },
-  status: { column: "status", ascending: true },
-} as const;
-
-type SortKey = keyof typeof SORT_OPTIONS;
+import { applyLeadFilters, resolveSort } from "@/lib/lead-filters";
 
 export async function GET(request: NextRequest) {
   const admin = await requireAdmin(["super_admin", "sales_agent"]);
@@ -33,20 +18,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const params = new URL(request.url).searchParams;
-    const q = params.get("q")?.trim();
-    const sortParam = params.get("sort") as SortKey | null;
-    const sort = sortParam && sortParam in SORT_OPTIONS ? SORT_OPTIONS[sortParam] : SORT_OPTIONS.recent_activity;
-    const dateFrom = params.get("dateFrom")?.trim();
-    const dateTo = params.get("dateTo")?.trim();
-    // "Qualified" = has a phone we can actually call. Phone alone is enough
-    // to exclude anonymous guest try-ons — a lead that's claimed (signed in)
-    // gets phone/user_id patched onto its original row without its `source`
-    // ever changing from "guest_tryon" (see lib/leads.ts), so filtering on
-    // source as well would wrongly drop every converted guest lead.
-    const qualifiedOnly = params.get("qualifiedOnly") === "true";
-    // Read/unread filter for the CRM inbox view — "read" flips true the
-    // first time an agent opens the lead (see [id]/route.ts).
-    const readStatus = params.get("readStatus");
+    const sort = resolveSort(params);
 
     let query = supabaseAdmin
       .from("leads")
@@ -55,35 +27,7 @@ export async function GET(request: NextRequest) {
       .order(sort.column, { ascending: sort.ascending })
       .order("created_at", { ascending: false });
 
-    if (admin.role === "sales_agent") {
-      query = query.or(`assigned_agent_id.eq.${admin.id},assigned_agent_id.is.null`);
-    }
-
-    // Agent search — by phone or the CRM's lead id.
-    if (q) {
-      query = query.or(`phone.ilike.%${q}%,crm_lead_id.ilike.%${q}%`);
-    }
-
-    if (dateFrom) {
-      query = query.gte("created_at", new Date(dateFrom).toISOString());
-    }
-    if (dateTo) {
-      // dateTo comes in as a plain YYYY-MM-DD date — push to end of that day
-      // so leads created on the "to" date itself are included.
-      const end = new Date(dateTo);
-      end.setHours(23, 59, 59, 999);
-      query = query.lte("created_at", end.toISOString());
-    }
-
-    if (qualifiedOnly) {
-      query = query.not("phone", "is", null);
-    }
-
-    if (readStatus === "unread") {
-      query = query.eq("is_read", false);
-    } else if (readStatus === "read") {
-      query = query.eq("is_read", true);
-    }
+    query = applyLeadFilters(query, params, admin);
 
     const { data: leads, error } = await query;
 

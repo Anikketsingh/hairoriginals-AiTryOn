@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag, Star, ArrowUpDown, Flame } from "lucide-react";
+import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag, Star, ArrowUpDown, Flame, Download, AlertCircle } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -121,6 +121,8 @@ export default function SalesCRMPage() {
   const [creditCount, setCreditCount] = useState(2);
   const [submitting, setSubmitting] = useState(false);
   const [grantError, setGrantError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const unreadCount = leads.filter((l) => !l.is_read).length;
 
@@ -137,15 +139,21 @@ export default function SalesCRMPage() {
     }
   }, []);
 
+  // Shared by fetchLeads and the export button so the exported file can
+  // never drift from whatever filters are currently on screen.
+  const buildLeadParams = useCallback(() => {
+    const params = new URLSearchParams({ sort });
+    if (search.trim()) params.set("q", search.trim());
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    if (qualifiedOnly) params.set("qualifiedOnly", "true");
+    if (readFilter !== "all") params.set("readStatus", readFilter);
+    return params;
+  }, [search, sort, dateFrom, dateTo, qualifiedOnly, readFilter]);
+
   const fetchLeads = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ sort });
-      if (search.trim()) params.set("q", search.trim());
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      if (qualifiedOnly) params.set("qualifiedOnly", "true");
-      if (readFilter !== "all") params.set("readStatus", readFilter);
-      const res = await fetch(`/api/admin/leads?${params.toString()}`);
+      const res = await fetch(`/api/admin/leads?${buildLeadParams().toString()}`);
       if (res.ok) {
         const data = await res.json();
         setLeads(data);
@@ -156,7 +164,34 @@ export default function SalesCRMPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, sort, dateFrom, dateTo, qualifiedOnly, readFilter]);
+  }, [buildLeadParams]);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch(`/api/admin/leads/export?${buildLeadParams().toString()}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setExportError(data?.error ?? "Failed to export leads.");
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = disposition.match(/filename="([^"]+)"/);
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filenameMatch?.[1] ?? "leads_export.xlsx";
+      link.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Failed to export leads:", err);
+      setExportError("Failed to export leads.");
+    } finally {
+      setExporting(false);
+    }
+  }, [buildLeadParams]);
 
   // Debounced agent search / filter change — re-run on any filter update.
   useEffect(() => {
@@ -245,10 +280,31 @@ export default function SalesCRMPage() {
 
   return (
     <div className="flex flex-col gap-6 sm:gap-8">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Sales Agent CRM &amp; Lead Console</h1>
-        <p className="text-xs text-white/50 mt-1">Manage Stage 3 qualified leads, record stylist contact logs, and grant Stage 4 bonus try-ons.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Sales Agent CRM &amp; Lead Console</h1>
+          <p className="text-xs text-white/50 mt-1">Manage Stage 3 qualified leads, record stylist contact logs, and grant Stage 4 bonus try-ons.</p>
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting || leads.length === 0}
+          className="shrink-0 flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {exporting ? (
+            <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" />
+          ) : (
+            <Download className="w-3.5 h-3.5 shrink-0" />
+          )}
+          {exporting ? "Preparing…" : `Export ${leads.length} lead${leads.length === 1 ? "" : "s"} (Excel)`}
+        </button>
       </div>
+
+      {exportError && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+          <span>{exportError}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Leads List — capped short on phones so the workspace below stays reachable */}

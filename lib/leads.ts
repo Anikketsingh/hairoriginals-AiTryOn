@@ -23,7 +23,7 @@ const CRM_MAX_LOOKS = 5;
  * — so the URL we hand Digicuro never goes dead (their signed URLs would expire
  * in ~30 days, and they don't re-host our images).
  */
-function crmMediaUrl(generationId: string, kind: "result" | "source"): string {
+export function crmMediaUrl(generationId: string, kind: "result" | "source"): string {
   return `${getAppBaseUrl()}/api/crm-media/${generationId}/${kind}`;
 }
 
