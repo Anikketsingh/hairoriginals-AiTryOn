@@ -10,6 +10,7 @@ interface Lead {
   generations_count: number;
   status: string;
   source: string;
+  is_read: boolean;
   created_at: string;
   /** Bumped only when the customer completes another try-on (see lib/leads.ts). */
   last_activity_at: string | null;
@@ -112,6 +113,7 @@ export default function SalesCRMPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [qualifiedOnly, setQualifiedOnly] = useState(false);
+  const [readFilter, setReadFilter] = useState<"all" | "unread" | "read">("all");
   const [detail, setDetail] = useState<LeadDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -120,6 +122,7 @@ export default function SalesCRMPage() {
   const [submitting, setSubmitting] = useState(false);
   const [grantError, setGrantError] = useState<string | null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const unreadCount = leads.filter((l) => !l.is_read).length;
 
   /**
    * Below lg the workspace sits *under* the leads list rather than beside it,
@@ -141,6 +144,7 @@ export default function SalesCRMPage() {
       if (dateFrom) params.set("dateFrom", dateFrom);
       if (dateTo) params.set("dateTo", dateTo);
       if (qualifiedOnly) params.set("qualifiedOnly", "true");
+      if (readFilter !== "all") params.set("readStatus", readFilter);
       const res = await fetch(`/api/admin/leads?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -152,7 +156,7 @@ export default function SalesCRMPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, sort, dateFrom, dateTo, qualifiedOnly]);
+  }, [search, sort, dateFrom, dateTo, qualifiedOnly, readFilter]);
 
   // Debounced agent search / filter change — re-run on any filter update.
   useEffect(() => {
@@ -179,6 +183,11 @@ export default function SalesCRMPage() {
           feedback: data.feedback ?? [],
           credits: data.credits ?? { remaining: 0, used: 0 },
         });
+        // Opening the detail view marks the lead read server-side (see
+        // [id]/route.ts) — reflect that locally so the unread dot clears
+        // without a full list refetch.
+        setLeads((prev) => prev.map((l) => (l.id === leadId && !l.is_read ? { ...l, is_read: true } : l)));
+        setActiveLead((prev) => (prev && prev.id === leadId && !prev.is_read ? { ...prev, is_read: true } : prev));
       }
     } catch (err) {
       console.error("Failed to load lead detail:", err);
@@ -275,6 +284,23 @@ export default function SalesCRMPage() {
               ))}
             </select>
           </div>
+          {/* Read/unread filter — is_read flips true once an agent opens the lead */}
+          <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+            {(["all", "unread", "read"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setReadFilter(f)}
+                aria-pressed={readFilter === f}
+                className={`flex-1 rounded-md py-1.5 text-[11px] font-semibold capitalize transition-colors ${
+                  readFilter === f ? "bg-amber-400 text-black" : "text-white/50 hover:text-white/80"
+                }`}
+              >
+                {f}
+                {f === "unread" && unreadCount > 0 ? ` (${unreadCount})` : ""}
+              </button>
+            ))}
+          </div>
           {/* Date range filter (filters on lead creation date) */}
           <div className="grid grid-cols-2 gap-2">
             <input
@@ -331,7 +357,12 @@ export default function SalesCRMPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-white truncate">{l.phone || "Guest Session Lead"}</span>
+                    <span className="flex items-center gap-1.5 min-w-0 text-xs font-bold text-white truncate">
+                      {!l.is_read && (
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" aria-label="Unread" />
+                      )}
+                      {l.phone || "Guest Session Lead"}
+                    </span>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {hasReturned(l) && (
                         <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold uppercase">

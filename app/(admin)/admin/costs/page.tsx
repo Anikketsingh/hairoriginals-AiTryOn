@@ -284,18 +284,26 @@ export default function AICostsPage() {
                         )}
                       </td>
                       <td className="py-3 px-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          gen.status === "completed" 
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                            : gen.status === "failed"
-                            ? "bg-red-500/10 text-red-400 border border-red-500/20"
-                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                        }`}>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            gen.status === "completed"
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              : gen.status === "failed"
+                              ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                              : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                          }`}
+                          title={gen.status === "failed" ? gen.error_log ?? undefined : undefined}
+                        >
                           {gen.status}
                         </span>
+                        {gen.status === "failed" && gen.error_log && (
+                          <div className="mt-1 max-w-[220px] truncate text-[10px] text-red-300/70" title={gen.error_log}>
+                            {gen.error_log}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-2 text-white/60 font-mono text-[10px]">
-                        {gen.model || "gemini-3.1-flash"}
+                        {gen.model || "—"}
                       </td>
                       <td className="py-3 px-2 text-white/70">
                         {gen.duration_ms ? `${(gen.duration_ms / 1000).toFixed(1)}s` : "N/A"}

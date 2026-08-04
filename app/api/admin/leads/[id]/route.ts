@@ -44,7 +44,7 @@ export async function GET(
     const { data: lead, error } = await supabaseAdmin
       .from("leads")
       .select(
-        "id, user_id, session_id, phone, funnel_stage_at_creation, generations_count, products_tried, status, source, assigned_agent_id, crm_lead_id, notes, created_at, updated_at, agent_actions(id, action_type, notes, credit_amount, created_at, agent_id)"
+        "id, user_id, session_id, phone, funnel_stage_at_creation, generations_count, products_tried, status, source, assigned_agent_id, crm_lead_id, notes, is_read, created_at, updated_at, agent_actions(id, action_type, notes, credit_amount, created_at, agent_id)"
       )
       .eq("id", id)
       .single();
@@ -60,6 +60,13 @@ export async function GET(
       lead.assigned_agent_id !== admin.id
     ) {
       return NextResponse.json({ error: "This lead is assigned to another agent." }, { status: 403 });
+    }
+
+    // Opening the lead in the CRM is what "reads" it — flip the flag once,
+    // globally (not per-agent), so it drops out of the unread filter.
+    if (!lead.is_read) {
+      await supabaseAdmin.from("leads").update({ is_read: true }).eq("id", id);
+      lead.is_read = true;
     }
 
     const orFilter = lead.user_id

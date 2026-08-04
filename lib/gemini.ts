@@ -63,12 +63,25 @@ export async function generateTryOn(
 
   const candidates = response.candidates;
   if (!candidates || candidates.length === 0) {
-    throw new Error("No candidates returned from Gemini API.");
+    // An empty candidates array usually means Gemini blocked the prompt
+    // outright (e.g. safety filters on one of the two photos) rather than a
+    // transient failure — promptFeedback carries the actual reason, so
+    // surface it instead of a bare "no candidates" that gives agents nothing
+    // to act on when triaging error_log.
+    const blockReason = response.promptFeedback?.blockReason;
+    const blockMessage = response.promptFeedback?.blockReasonMessage;
+    const detail = blockReason
+      ? ` (blockReason: ${blockReason}${blockMessage ? ` — ${blockMessage}` : ""})`
+      : "";
+    throw new Error(`No candidates returned from Gemini API.${detail}`);
   }
 
   const parts = candidates[0].content?.parts;
   if (!parts || parts.length === 0) {
-    throw new Error("No parts in Gemini response.");
+    const finishReason = candidates[0].finishReason;
+    throw new Error(
+      `No parts in Gemini response.${finishReason ? ` (finishReason: ${finishReason})` : ""}`
+    );
   }
 
   for (const part of parts) {

@@ -44,10 +44,13 @@ export async function GET(request: NextRequest) {
     // ever changing from "guest_tryon" (see lib/leads.ts), so filtering on
     // source as well would wrongly drop every converted guest lead.
     const qualifiedOnly = params.get("qualifiedOnly") === "true";
+    // Read/unread filter for the CRM inbox view — "read" flips true the
+    // first time an agent opens the lead (see [id]/route.ts).
+    const readStatus = params.get("readStatus");
 
     let query = supabaseAdmin
       .from("leads")
-      .select("id, user_id, session_id, phone, funnel_stage_at_creation, generations_count, status, source, assigned_agent_id, crm_lead_id, created_at, updated_at, last_activity_at, agent_actions(id, action_type, notes, credit_amount, created_at)")
+      .select("id, user_id, session_id, phone, funnel_stage_at_creation, generations_count, status, source, assigned_agent_id, crm_lead_id, is_read, created_at, updated_at, last_activity_at, agent_actions(id, action_type, notes, credit_amount, created_at)")
       // Tie-break on created_at so ties (e.g. equal try-on counts) stay stable.
       .order(sort.column, { ascending: sort.ascending })
       .order("created_at", { ascending: false });
@@ -74,6 +77,12 @@ export async function GET(request: NextRequest) {
 
     if (qualifiedOnly) {
       query = query.not("phone", "is", null);
+    }
+
+    if (readStatus === "unread") {
+      query = query.eq("is_read", false);
+    } else if (readStatus === "read") {
+      query = query.eq("is_read", true);
     }
 
     const { data: leads, error } = await query;
