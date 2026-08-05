@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Users, Sparkles, CheckCircle, AlertTriangle, Package, MessageSquare, ArrowUpRight } from "lucide-react";
+import { getGeminiModelInfo } from "@/lib/gemini-models";
 
 interface Metrics {
   totalUsers: number;
@@ -10,6 +11,8 @@ interface Metrics {
   failedGenerations: number;
   totalProducts: number;
   totalLeads: number;
+  /** Live value of the `gemini_model` setting, not a build-time constant. */
+  activeModel: string;
 }
 
 export default function AdminDashboardPage() {
@@ -31,6 +34,8 @@ export default function AdminDashboardPage() {
     }
     fetchMetrics();
   }, []);
+
+  const activeModelInfo = metrics?.activeModel ? getGeminiModelInfo(metrics.activeModel) : undefined;
 
   const cards = [
     { label: "Total Generations", value: metrics?.totalGenerations ?? 0, icon: Sparkles, color: "from-amber-400 to-orange-500" },
@@ -83,7 +88,14 @@ export default function AdminDashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-white/60">
           <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-2">
             <span className="font-semibold text-amber-400">Current AI Model Engine</span>
-            <p>Google Gemini 3.1 Flash Image (Asynchronous Queue Architecture)</p>
+            <p>
+              {loading
+                ? "…"
+                : `${activeModelInfo?.label ?? metrics?.activeModel ?? "Unknown"} (Asynchronous Queue Architecture)`}
+            </p>
+            {!loading && metrics?.activeModel && (
+              <code className="text-[10px] text-white/35 font-mono break-all">{metrics.activeModel}</code>
+            )}
           </div>
           <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-2">
             <span className="font-semibold text-rose-400">Active Gating Funnel</span>

@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Sliders, Save, CheckCircle, Loader2, RefreshCw } from "lucide-react";
+import { Sliders, Save, CheckCircle, Loader2, RefreshCw, Zap, ArrowLeftRight } from "lucide-react";
+import ModelPickerDialog from "@/components/admin/ModelPickerDialog";
+import { DEFAULT_GEMINI_MODEL, getGeminiModelInfo } from "@/lib/gemini-models";
 
 export default function AIConfigPage() {
   const [settings, setSettings] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
   useEffect(() => {
     async function loadSettings() {
@@ -47,6 +50,9 @@ export default function AIConfigPage() {
   const updateField = (key: string, val: unknown) => {
     setSettings((prev) => ({ ...prev, [key]: val }));
   };
+
+  const activeModel = (settings.gemini_model as string) ?? DEFAULT_GEMINI_MODEL;
+  const activeModelInfo = getGeminiModelInfo(activeModel);
 
   if (loading) {
     return (
@@ -91,14 +97,36 @@ export default function AIConfigPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Model is picked from a vetted list rather than typed free-hand:
+                an unrecognized id silently falls back to the default in
+                lib/generation-queue.ts, which used to look like a working save. */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-white/60">Gemini AI Model Identifier</label>
-              <input
-                type="text"
-                value={(settings.gemini_model as string) ?? "gemini-3.1-flash-image"}
-                onChange={(e) => updateField("gemini_model", e.target.value)}
-                className="px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50"
-              />
+              <label className="text-xs font-semibold text-white/60">Active Generation Model</label>
+              <button
+                type="button"
+                onClick={() => setModelPickerOpen(true)}
+                className="group flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-left hover:border-amber-400/50 transition-colors"
+              >
+                <span className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-xs font-semibold text-white truncate">
+                    {activeModelInfo?.label ?? activeModel}
+                  </span>
+                  <span className="flex items-center gap-2 text-[10px] text-white/40">
+                    {activeModelInfo ? (
+                      <>
+                        <span className="flex items-center gap-1">
+                          <Zap className="w-2.5 h-2.5 text-amber-400" />
+                          {activeModelInfo.latency}
+                        </span>
+                        <span>${activeModelInfo.pricePerImageUsd.toFixed(4)} / image</span>
+                      </>
+                    ) : (
+                      <span className="text-amber-400">Unrecognized — falls back to default</span>
+                    )}
+                  </span>
+                </span>
+                <ArrowLeftRight className="w-3.5 h-3.5 shrink-0 text-white/30 group-hover:text-amber-400 transition-colors" />
+              </button>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -189,6 +217,14 @@ export default function AIConfigPage() {
           </label>
         </div>
       </div>
+
+      {modelPickerOpen && (
+        <ModelPickerDialog
+          onClose={() => setModelPickerOpen(false)}
+          current={activeModel}
+          onSwitched={(modelId) => updateField("gemini_model", modelId)}
+        />
+      )}
     </div>
   );
 }

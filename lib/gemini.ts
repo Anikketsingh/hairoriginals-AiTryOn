@@ -1,18 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
 import { HAIR_TRYON_PROMPT } from "@/lib/prompt";
+import { DEFAULT_GEMINI_MODEL, type GeminiModel } from "@/lib/gemini-models";
 
-// Admin → AI Configuration lets an operator type in any model string; this
-// allowlist is what actually gets used — an unrecognized value falls back
-// to DEFAULT_GEMINI_MODEL rather than being passed straight through to the
-// API (see lib/generation-queue.ts, which resolves the settings value
-// against this before calling generateTryOn).
-export const ALLOWED_GEMINI_MODELS = ["gemini-3.1-flash-image"] as const;
-export type GeminiModel = (typeof ALLOWED_GEMINI_MODELS)[number];
-export const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-3.1-flash-image";
-
-export function isAllowedGeminiModel(value: string): value is GeminiModel {
-  return (ALLOWED_GEMINI_MODELS as readonly string[]).includes(value);
-}
+// The allowlist lives in lib/gemini-models.ts so the admin model picker can
+// import it without dragging @google/genai into the client bundle. Re-exported
+// here because callers (lib/generation-queue.ts) already reach for it via this
+// module. Admin → AI Configuration can only ever store one of those ids;
+// anything else falls back to DEFAULT_GEMINI_MODEL rather than being passed
+// straight through to the API.
+export {
+  ALLOWED_GEMINI_MODELS,
+  DEFAULT_GEMINI_MODEL,
+  isAllowedGeminiModel,
+  type GeminiModel,
+} from "@/lib/gemini-models";
 
 export async function generateTryOn(
   personBase64: string,

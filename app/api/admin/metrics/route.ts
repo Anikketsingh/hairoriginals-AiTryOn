@@ -7,19 +7,23 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { getGeminiModel } from "@/lib/settings";
 
 export async function GET() {
   const admin = await requireAdmin(["super_admin", "content_manager"]);
   if (admin instanceof NextResponse) return admin;
 
   try {
-    const [usersRes, genRes, successRes, failedRes, prodRes, leadsRes] = await Promise.all([
+    const [usersRes, genRes, successRes, failedRes, prodRes, leadsRes, activeModel] =
+      await Promise.all([
       supabaseAdmin.from("users").select("*", { count: "exact", head: true }),
       supabaseAdmin.from("generations").select("*", { count: "exact", head: true }),
       supabaseAdmin.from("generations").select("*", { count: "exact", head: true }).eq("status", "completed"),
       supabaseAdmin.from("generations").select("*", { count: "exact", head: true }).eq("status", "failed"),
       supabaseAdmin.from("products").select("*", { count: "exact", head: true }),
       supabaseAdmin.from("leads").select("*", { count: "exact", head: true }),
+      // Cached 60s in lib/settings.ts, so this adds no meaningful round-trip.
+      getGeminiModel(),
     ]);
 
     if (usersRes.error) console.error("[metrics] users error:", usersRes.error.message);
@@ -32,6 +36,7 @@ export async function GET() {
       failedGenerations: failedRes.count ?? 0,
       totalProducts: prodRes.count ?? 0,
       totalLeads: leadsRes.count ?? 0,
+      activeModel,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to fetch metrics.";

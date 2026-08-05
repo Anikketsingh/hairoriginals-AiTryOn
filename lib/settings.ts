@@ -17,6 +17,7 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { DEFAULT_GEMINI_MODEL } from "@/lib/gemini-models";
 
 // ────────────────────────────────────────────────────────────────
 // Types
@@ -176,9 +177,7 @@ export async function getAgentGateMessage(): Promise<string> {
 }
 
 export async function getGeminiModel(): Promise<string> {
-  return (
-    (await getSetting("gemini_model") as string) ?? "gemini-3.1-flash-image"
-  );
+  return (await getSetting("gemini_model") as string) ?? DEFAULT_GEMINI_MODEL;
 }
 
 export async function getMaxUploadSizeMb(): Promise<number> {
