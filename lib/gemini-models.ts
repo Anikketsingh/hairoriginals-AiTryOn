@@ -13,6 +13,14 @@
  * https://ai.google.dev/gemini-api/docs/pricing (checked 2026-08-05).
  * Latencies are the vendor's published figures, not measured here — treat
  * them as relative ordering rather than an SLA.
+ *
+ * Only models that can *emit* images belong here. Google's newer text tiers
+ * (gemini-3.5-flash, gemini-3.5-flash-lite, gemini-3.6-flash, …) accept image
+ * input but return text only, and gemini-omni-flash generates video — none of
+ * them can drive a try-on. Adding one would fail every generation at the
+ * "returned text instead of an image" throw in lib/gemini.ts. As of 2026-08-05
+ * the three below are the complete set of current image-output models, so a
+ * newer version number alone is not a reason to add an id here.
  */
 
 export interface GeminiModelInfo {
