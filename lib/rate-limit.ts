@@ -6,11 +6,27 @@
  * and POST /api/generate (burns AI spend per call). Backed by Upstash Redis
  * (REST-based — works from any runtime regardless of deployment target).
  *
- * Requires UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN. If unset,
- * limiting fails OPEN (a warning is logged once) rather than blocking local
- * dev entirely — but that means there is currently NO rate limiting in any
- * environment without these set. Provision an Upstash database (a free tier
- * is enough to start) and set both vars before relying on this in production.
+ * Failure behaviour, in order of preference:
+ *
+ *   1. Upstash configured        → distributed limiting, correct across all
+ *                                  serverless instances. This is the only
+ *                                  fully correct mode; provision it.
+ *   2. Upstash absent            → in-memory fallback (below). Degraded but
+ *                                  non-zero: it caps a naive single-source
+ *                                  flood. It does NOT hold across instances or
+ *                                  cold starts, so a distributed attacker gets
+ *                                  roughly limit × instance-count.
+ *   3. Upstash configured but    → controlled by RATE_LIMIT_FAIL_CLOSED. Open
+ *      erroring at request time     by default so a Redis blip doesn't take the
+ *                                  product down; set the flag to deny instead.
+ *
+ * This module previously returned `true` unconditionally when unconfigured,
+ * which meant both endpoints had NO limiting whatsoever in production.
+ *
+ * NOTE: this cannot protect the OTP send path. signInWithOtp() goes browser →
+ * Supabase directly and never reaches a Next.js route, so there is nothing
+ * here to hook. That path is defended by Turnstile, the country allowlist in
+ * supabase/functions/send-sms/routing.ts, and the Supabase dashboard limits.
  */
 
 import { Ratelimit } from "@upstash/ratelimit";
@@ -19,6 +35,11 @@ import type { NextRequest } from "next/server";
 
 const url = process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+const failClosed = process.env.RATE_LIMIT_FAIL_CLOSED === "true";
+
+const SESSIONS_LIMIT = 10;
+const GENERATE_LIMIT = 20;
+const WINDOW_MS = 60_000;
 
 let sessionsLimiter: Ratelimit | null = null;
 let generateLimiter: Ratelimit | null = null;
@@ -27,19 +48,77 @@ if (url && token) {
   const redis = new Redis({ url, token });
   sessionsLimiter = new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(10, "1 m"),
+    limiter: Ratelimit.slidingWindow(SESSIONS_LIMIT, "1 m"),
     prefix: "rl:sessions",
   });
   generateLimiter = new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(20, "1 m"),
+    limiter: Ratelimit.slidingWindow(GENERATE_LIMIT, "1 m"),
     prefix: "rl:generate",
   });
 } else {
   console.warn(
     "[rate-limit] UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN not set — " +
-      "rate limiting is disabled. Set both env vars before production."
+      "falling back to per-instance in-memory limiting. This does NOT hold " +
+      "across serverless instances. Provision Upstash before relying on this.",
   );
+}
+
+/**
+ * Per-instance sliding window, used only when Upstash is unconfigured.
+ *
+ * Bounded by eviction on every call so it can't grow without limit under a
+ * high-cardinality key attack (a flood of distinct IPs), which would otherwise
+ * turn this safeguard into a memory-exhaustion vector.
+ */
+const MAX_TRACKED_KEYS = 10_000;
+const memoryHits = new Map<string, number[]>();
+
+function checkInMemory(key: string, limit: number): boolean {
+  const now = Date.now();
+  const cutoff = now - WINDOW_MS;
+
+  if (memoryHits.size > MAX_TRACKED_KEYS) {
+    for (const [k, times] of memoryHits) {
+      const live = times.filter((t) => t > cutoff);
+      if (live.length === 0) memoryHits.delete(k);
+      else memoryHits.set(k, live);
+    }
+    // Still oversized after pruning: drop the oldest entries wholesale rather
+    // than let the map grow unbounded.
+    if (memoryHits.size > MAX_TRACKED_KEYS) {
+      for (const k of [...memoryHits.keys()].slice(0, memoryHits.size - MAX_TRACKED_KEYS)) {
+        memoryHits.delete(k);
+      }
+    }
+  }
+
+  const hits = (memoryHits.get(key) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= limit) {
+    memoryHits.set(key, hits);
+    return false;
+  }
+  hits.push(now);
+  memoryHits.set(key, hits);
+  return true;
+}
+
+async function check(
+  limiter: Ratelimit | null,
+  key: string,
+  limit: number,
+  label: string,
+): Promise<boolean> {
+  if (!limiter) return checkInMemory(key, limit);
+  try {
+    const { success } = await limiter.limit(key);
+    return success;
+  } catch (err) {
+    // Redis unreachable. Denying every request would turn a cache outage into
+    // a full outage, so default to allowing unless explicitly told otherwise.
+    console.error(`[rate-limit] ${label} check failed:`, err);
+    return !failClosed;
+  }
 }
 
 export function getClientIp(request: NextRequest): string {
@@ -50,16 +129,12 @@ export function getClientIp(request: NextRequest): string {
   );
 }
 
-/** Per-IP limit on session creation — 10/minute. Fails open if unconfigured. */
+/** Per-IP limit on session creation — 10/minute. */
 export async function checkSessionRateLimit(ip: string): Promise<boolean> {
-  if (!sessionsLimiter) return true;
-  const { success } = await sessionsLimiter.limit(ip);
-  return success;
+  return check(sessionsLimiter, ip, SESSIONS_LIMIT, "sessions");
 }
 
 /** Per-session (or per-IP, before a session exists) limit on generation — 20/minute. */
 export async function checkGenerateRateLimit(key: string): Promise<boolean> {
-  if (!generateLimiter) return true;
-  const { success } = await generateLimiter.limit(key);
-  return success;
+  return check(generateLimiter, key, GENERATE_LIMIT, "generate");
 }

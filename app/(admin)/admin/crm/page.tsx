@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { UserCheck, MessageSquare, PlusCircle, Loader2, Clock, ShieldAlert, Search, Sparkles, ShoppingBag, Star, ArrowUpDown, Flame, Download, AlertCircle } from "lucide-react";
+import { formatMoney } from "@/lib/format";
 
 interface Lead {
   id: string;
@@ -78,6 +79,7 @@ interface InterestedProduct {
   image_url: string;
   price: number | null;
   selling_price?: number | null;
+  currency?: string | null;
   saved?: boolean;
 }
 
@@ -624,7 +626,7 @@ export default function SalesCRMPage() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-xs font-semibold text-white">{p.name}</p>
                           <p className="text-[11px] text-white/50">
-                            ₹{((p.selling_price ?? p.price) ?? 0).toLocaleString()}
+                            {formatMoney((p.selling_price ?? p.price) ?? 0, p.currency ?? undefined)}
                           </p>
                         </div>
                         {p.saved && (

@@ -211,10 +211,19 @@ token_verifications = 30
 web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
+#
+# ⚠️  Without a captcha, signInWithOtp() is an unauthenticated, unmetered path
+# to a paid SMS gateway — the standard setup for SMS pumping fraud. It cannot
+# be rate-limited from the app because the call goes browser → Supabase
+# directly and never touches a Next.js route.
+#
+# For the CLOUD project this must be enabled in the Dashboard (Auth → Bot and
+# Abuse Protection); the block below only affects the local stack. The client
+# passes the token from components/FunnelGate.tsx.
 # [auth.captcha]
 # enabled = true
-# provider = "hcaptcha"
-# secret = ""
+# provider = "turnstile"
+# secret = "env(TURNSTILE_SECRET_KEY)"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
@@ -267,6 +276,12 @@ max_frequency = "5s"
 # Use pre-defined map of phone number to OTP for testing.
 # In local dev, no real SMS is sent — use these phone/OTP pairs to test the auth flow.
 # Phone numbers must be in E.164 format WITHOUT the leading +.
+#
+# ⚠️  LOCAL ONLY. These pairs short-circuit Supabase Auth before the send_sms
+# hook runs, so they bypass the country allowlist, both providers, and any
+# captcha. If this block ever reaches the cloud project it is a universal
+# authentication backdoor — anyone who guesses a listed number signs in as that
+# user. Verify it is absent from the Dashboard before every production deploy.
 [auth.sms.test_otp]
 "919999999999" = "123456"
 "+919999999999" = "123456"
@@ -291,14 +306,22 @@ max_frequency = "5s"
 # enabled = true
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
-# Send SMS hook — delegates OTP delivery to the `nimbus-send-sms` edge function
-# (Nimbus SMS provider). Supabase still generates/verifies the OTP and issues the
-# session; only delivery is handed to this hook, which supersedes [auth.sms.twilio].
+# Send SMS hook — delegates OTP delivery to the `send-sms` edge function, which
+# routes by country: +91 → Nimbus, everything else → Twilio. Supabase still
+# generates/verifies the OTP and issues the session; only delivery is handed to
+# this hook, which supersedes [auth.sms.twilio].
+#
+# This hook is the only server-side code on the OTP send path (signInWithOtp()
+# goes browser → Supabase directly), so it also carries the country allowlist
+# that caps SMS-pumping exposure. See supabase/functions/send-sms/routing.ts.
 [auth.hook.send_sms]
 enabled = true
 # Local: the edge runtime is reachable from the auth container via host.docker.internal.
-uri = "http://host.docker.internal:54321/functions/v1/nimbus-send-sms"
-# Cloud: uri = "https://<project-ref>.supabase.co/functions/v1/nimbus-send-sms"
+uri = "http://host.docker.internal:54321/functions/v1/send-sms"
+# Cloud: uri = "https://<project-ref>.supabase.co/functions/v1/send-sms"
+#   NOTE: this URI is set in the Supabase Dashboard (Auth → Hooks), not from
+#   this file. Deploy the function BEFORE repointing the hook, or India OTP
+#   breaks in the gap.
 secrets = "env(SEND_SMS_HOOK_SECRET)"
 
 # NOTE: SMS delivery is handled by the [auth.hook.send_sms] hook (Nimbus) above.
@@ -402,21 +425,33 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# Secrets for the nimbus-send-sms function (see [auth.hook.send_sms] above).
+# Secrets for the send-sms function (see [auth.hook.send_sms] above).
 # Sourced from .env / .env.local at the project root via env() substitution.
 [edge_runtime.secrets]
 SEND_SMS_HOOK_SECRET = "env(SEND_SMS_HOOK_SECRET)"
+# Routing. SMS_ALLOWED_COUNTRIES is default-deny — if it is unset or empty the
+# hook rejects every number rather than opening delivery worldwide. Keep it in
+# sync with Twilio Console → Messaging → Geo Permissions.
+SMS_ALLOWED_COUNTRIES = "env(SMS_ALLOWED_COUNTRIES)"
+SMS_INDIA_PROVIDER = "env(SMS_INDIA_PROVIDER)"
+SMS_INDIA_FALLBACK = "env(SMS_INDIA_FALLBACK)"
+# Nimbus — India only (TRAI DLT).
 NIMBUS_USER_ID = "env(NIMBUS_USER_ID)"
 NIMBUS_PASSWORD = "env(NIMBUS_PASSWORD)"
 NIMBUS_SENDER_ID = "env(NIMBUS_SENDER_ID)"
 NIMBUS_ENTITY_ID = "env(NIMBUS_ENTITY_ID)"
 NIMBUS_TEMPLATE_ID = "env(NIMBUS_TEMPLATE_ID)"
 NIMBUS_OTP_TEMPLATE = "env(NIMBUS_OTP_TEMPLATE)"
+# Twilio — all non-India markets. Programmable Messaging, not Verify.
+TWILIO_ACCOUNT_SID = "env(TWILIO_ACCOUNT_SID)"
+TWILIO_AUTH_TOKEN = "env(TWILIO_AUTH_TOKEN)"
+TWILIO_MESSAGING_SERVICE_SID = "env(TWILIO_MESSAGING_SERVICE_SID)"
+TWILIO_OTP_TEMPLATE = "env(TWILIO_OTP_TEMPLATE)"
 
-# The Nimbus Send SMS hook is invoked by Supabase Auth (not an end user), so it
-# must not require an end-user JWT. It authenticates via the Standard Webhooks
+# The Send SMS hook is invoked by Supabase Auth (not an end user), so it must
+# not require an end-user JWT. It authenticates via the Standard Webhooks
 # signature instead (SEND_SMS_HOOK_SECRET).
-[functions.nimbus-send-sms]
+[functions.send-sms]
 verify_jwt = false
 
 [analytics]

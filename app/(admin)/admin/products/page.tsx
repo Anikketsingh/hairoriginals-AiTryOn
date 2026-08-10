@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Package, Plus, Search, Filter, Copy, Trash2, Edit3, History, CheckCircle2, Archive, Loader2, Sparkles, AlertCircle } from "lucide-react";
 import type { Product, Category } from "@/lib/types";
+import { formatMoney } from "@/lib/format";
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -278,7 +279,7 @@ export default function AdminProductsPage() {
 
                 <div className="flex items-center justify-between gap-2 border-t border-white/5 pt-3">
                   <span className="text-sm font-bold text-emerald-400">
-                    ₹{(p.selling_price || p.price || 0).toLocaleString()}
+                    {formatMoney(p.selling_price || p.price || 0, p.currency ?? undefined)}
                   </span>
                   <div className="flex items-center gap-1">
                     <Link
@@ -363,7 +364,7 @@ export default function AdminProductsPage() {
                       </div>
                     </td>
                     <td className="p-4 font-mono text-white/50">{p.sku || "N/A"}</td>
-                    <td className="p-4 font-bold text-emerald-400">₹{(p.selling_price || p.price || 0).toLocaleString()}</td>
+                    <td className="p-4 font-bold text-emerald-400">{formatMoney(p.selling_price || p.price || 0, p.currency ?? undefined)}</td>
                     <td className="p-4">
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${

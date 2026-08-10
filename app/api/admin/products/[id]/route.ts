@@ -24,6 +24,8 @@ const updateProductBodySchema = z.object({
   description: z.string().optional().nullable(),
   selling_price: numericField,
   mrp: numericField,
+  /** ISO 4217. Matches the products_currency_iso4217 CHECK constraint. */
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "currency must be a 3-letter ISO 4217 code").optional(),
   discount_percentage: numericField,
   image_url: z.string().optional(),
   shop_url: z.string().trim().url("shop_url must be a valid URL").optional().or(z.literal("")).nullable(),
@@ -109,6 +111,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
         price: Number(body.selling_price) || 0,
         selling_price: Number(body.selling_price) || 0,
         mrp: Number(body.mrp) || 0,
+        ...(body.currency ? { currency: body.currency } : {}),
         discount_percentage: Number(body.discount_percentage) || 0,
         image_url: body.image_url,
         shop_url: body.shop_url || null,

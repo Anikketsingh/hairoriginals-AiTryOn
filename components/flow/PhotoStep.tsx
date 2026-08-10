@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import Link from "next/link";
 import { Camera, ImagePlus, RefreshCw, AlertCircle, Info, ArrowRight, Check } from "lucide-react";
 import Button from "@/components/ui/Button";
 import StickyActionBar from "@/components/ui/StickyActionBar";
@@ -28,6 +29,12 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
+  /**
+   * Biometric-processing consent for the currently selected photo. Reset
+   * whenever a new photo is chosen (see `process`), so consent is always tied
+   * to the specific image being uploaded rather than granted once and reused.
+   */
+  const [consented, setConsented] = useState(false);
 
   const process = useCallback(
     async (file: File) => {
@@ -44,6 +51,7 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
       try {
         const img = await fileToUploadedImage(file);
         if (img.dataUrl) setValidation(await validatePortraitPhoto(img.dataUrl));
+        setConsented(false);
         onSelect(img);
         trackAnalyticsEvent("photo_added", {}, sessionToken);
       } catch {
@@ -154,16 +162,50 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
 
       {/* Sticky continue CTA */}
       <StickyActionBar>
-        <div className="mx-auto max-w-md pb-3">
+        <div className="mx-auto flex max-w-md flex-col gap-2.5 pb-3">
+          {/*
+            Explicit, unbundled consent before a facial image is processed.
+            Required as an Article 9 lawful basis under GDPR and as "written
+            release" under Illinois BIPA — which carries $1,000-$5,000 statutory
+            damages per violation. It must be an affirmative act, so the box
+            starts unticked and gates the CTA; it is deliberately NOT persisted,
+            so consent is given per photo rather than once forever.
+          */}
+          {personImage && (
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--radius-md)] bg-surface-sunken px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={consented}
+                onChange={(e) => setConsented(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-brand)]"
+              />
+              <span className="text-[11px] leading-relaxed text-ink-soft">
+                I agree that my photo may be processed by Google&apos;s Gemini AI to
+                generate my try-on, and stored so I can view it later. See the{" "}
+                <Link
+                  href="/privacy"
+                  onClick={(e) => e.stopPropagation()}
+                  className="font-semibold text-ink underline underline-offset-2"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
+          )}
           <Button
             size="lg"
             fullWidth
-            disabled={!personImage}
+            disabled={!personImage || !consented}
             onClick={onContinue}
             rightIcon={<ArrowRight className="h-5 w-5" />}
             leftIcon={personImage ? <Check className="h-5 w-5" /> : undefined}
           >
-            {personImage ? "Continue" : "Add a photo to continue"}
+            {!personImage
+              ? "Add a photo to continue"
+              : consented
+                ? "Continue"
+                : "Agree to continue"}
           </Button>
         </div>
       </StickyActionBar>
@@ -186,7 +228,8 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
           onCapture={(img) => {
             setValidation(null);
             setError(null);
-            onSelect(img);
+            setConsented(false);
+        onSelect(img);
             trackAnalyticsEvent("photo_added", { source: "camera" }, sessionToken);
           }}
           onClose={() => setShowCamera(false)}

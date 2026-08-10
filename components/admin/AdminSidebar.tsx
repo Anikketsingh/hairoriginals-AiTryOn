@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Package, Sliders, BookOpen, UserCheck, BarChart3, ExternalLink, Sparkles, Shield, Coins, LogOut, Users, Palette, Menu, X } from "lucide-react";
+import { LayoutDashboard, Package, Sliders, BookOpen, UserCheck, BarChart3, ExternalLink, Sparkles, Shield, Coins, LogOut, Users, Palette, Menu, X, Lock } from "lucide-react";
 import type { AdminRole } from "@/lib/admin-auth";
 import { supabaseAdminBrowserClient } from "@/lib/supabase/admin-browser-client";
 
@@ -25,21 +25,83 @@ const ROLE_LABELS: Record<AdminRole, string> = {
   sales_agent: "Sales Agent",
 };
 
-interface AdminSidebarProps {
-  admin: { name: string; role: AdminRole };
+/**
+ * The vault has no nav entry until you ask for one: tap the "Admin Console"
+ * badge this many times in quick succession and the link appears. Deliberately
+ * a gesture nobody performs by accident — the vault opens onto every customer
+ * photo we hold, so it shouldn't sit in the menu inviting a click. The reveal
+ * is only cosmetic; the password and the secret path still gate the page.
+ */
+const SECRET_TAP_COUNT = 5;
+const SECRET_TAP_WINDOW_MS = 3000;
+const SECRET_REVEAL_KEY = "ho_vault_nav";
+const SECRET_REVEAL_EVENT = "ho-vault-reveal";
+
+// The reveal flag lives in sessionStorage so it survives a reload but dies
+// with the tab — an external store, hence useSyncExternalStore rather than
+// state seeded from an effect. "storage" covers other tabs; the custom event
+// covers this one, which "storage" deliberately doesn't fire for.
+function subscribeToReveal(onStoreChange: () => void) {
+  window.addEventListener(SECRET_REVEAL_EVENT, onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener(SECRET_REVEAL_EVENT, onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
 }
 
-export default function AdminSidebar({ admin }: AdminSidebarProps) {
+const readReveal = () => sessionStorage.getItem(SECRET_REVEAL_KEY) === "1";
+/** Server render never has the flag; hydration corrects it on the client. */
+const readRevealOnServer = () => false;
+
+interface AdminSidebarProps {
+  admin: { name: string; role: AdminRole };
+  /** Vault URL, or null when this admin isn't its owner. */
+  vaultPath?: string | null;
+}
+
+export default function AdminSidebar({ admin, vaultPath = null }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const secretTaps = useRef({ count: 0, firstAt: 0 });
   const visibleNavItems = NAV_ITEMS.filter((item) => item.roles.includes(admin.role));
+
+  const revealedInSession = useSyncExternalStore(
+    subscribeToReveal,
+    readReveal,
+    readRevealOnServer
+  );
+  const onVaultPage = pathname.startsWith("/admin/vault/");
+  // Being on the vault keeps its link up regardless — landing there from a
+  // bookmark shouldn't leave the nav pretending the page doesn't exist.
+  const showVaultLink = vaultPath !== null && (revealedInSession || onVaultPage);
 
   // Longest matching href wins, so a nested route (/admin/products/editor)
   // still highlights its parent item instead of falling back to "/admin".
   const activeItem = visibleNavItems
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
     .sort((a, b) => b.href.length - a.href.length)[0];
+
+  const handleSecretTap = () => {
+    if (!vaultPath || showVaultLink) return;
+    const now = Date.now();
+    const taps = secretTaps.current;
+
+    // Any pause longer than the window restarts the count, so ordinary
+    // stray clicks never accumulate into a reveal.
+    if (now - taps.firstAt > SECRET_TAP_WINDOW_MS) {
+      secretTaps.current = { count: 1, firstAt: now };
+      return;
+    }
+
+    taps.count += 1;
+    if (taps.count >= SECRET_TAP_COUNT) {
+      secretTaps.current = { count: 0, firstAt: 0 };
+      sessionStorage.setItem(SECRET_REVEAL_KEY, "1");
+      window.dispatchEvent(new Event(SECRET_REVEAL_EVENT));
+    }
+  };
 
   // While the drawer covers the screen, freeze the page behind it and let
   // Escape dismiss it.
@@ -74,12 +136,18 @@ export default function AdminSidebar({ admin }: AdminSidebarProps) {
           </div>
           <div>
             <p className="text-sm font-bold text-white tracking-tight">HairOriginals</p>
-            <div className="flex items-center gap-1">
+            {/* Doubles as the vault's hidden entry point — see SECRET_TAP_COUNT. */}
+            <button
+              type="button"
+              onClick={handleSecretTap}
+              aria-label="Admin Console"
+              className="flex items-center gap-1 cursor-default select-none"
+            >
               <Shield className="w-3 h-3 text-amber-400" />
               <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
                 Admin Console
               </span>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -107,6 +175,22 @@ export default function AdminSidebar({ admin }: AdminSidebarProps) {
               </Link>
             );
           })}
+
+          {showVaultLink && (
+            <Link
+              href={vaultPath!}
+              onClick={() => setDrawerOpen(false)}
+              aria-current={onVaultPage ? "page" : undefined}
+              className={`flex items-center gap-3 px-3.5 py-3 lg:py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                onVaultPage
+                  ? "bg-gradient-to-r from-amber-400/20 to-rose-500/20 text-amber-300 border border-amber-400/30"
+                  : "text-white/50 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Lock className={`w-4 h-4 shrink-0 ${onVaultPage ? "text-amber-400" : "text-white/40"}`} />
+              Image Vault
+            </Link>
+          )}
         </nav>
       </div>
 

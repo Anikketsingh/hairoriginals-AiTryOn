@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save, Sparkles, History, RotateCcw, Loader2, Plus, Trash2, CheckCircle2, UploadCloud, Link2, Palette, AlertTriangle } from "lucide-react";
 import type { Category, ProductVersion } from "@/lib/types";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "@/lib/format";
 
 interface CustomizationOptionLite {
   id: string;
@@ -175,6 +176,7 @@ function ProductEditorContent() {
   const [description, setDescription] = useState("");
   const [sellingPrice, setSellingPrice] = useState<number | "">("");
   const [mrp, setMrp] = useState<number | "">("");
+  const [currency, setCurrency] = useState<string>(DEFAULT_CURRENCY);
   const [discountPercentage, setDiscountPercentage] = useState<number | "">("");
   const [imageUrl, setImageUrl] = useState("");
   const [shopUrl, setShopUrl] = useState("");
@@ -236,6 +238,7 @@ function ProductEditorContent() {
           setDescription(data.description || "");
           setSellingPrice(data.selling_price || data.price || "");
           setMrp(data.mrp || "");
+          setCurrency(data.currency || DEFAULT_CURRENCY);
           setDiscountPercentage(data.discount_percentage || "");
           setImageUrl(data.image_url || "");
           setShopUrl(data.shop_url || "");
@@ -288,6 +291,7 @@ function ProductEditorContent() {
         description,
         selling_price: Number(sellingPrice) || 0,
         mrp: Number(mrp) || 0,
+        currency,
         discount_percentage: Number(discountPercentage) || 0,
         image_url: imageUrl,
         shop_url: shopUrl.trim(),
@@ -487,7 +491,26 @@ function ProductEditorContent() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-semibold text-white/70">Selling Price (₹)</label>
+              <label className="text-xs font-semibold text-white/70">Currency</label>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none"
+              >
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code} className="bg-neutral-900">
+                    {c.code} — {c.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-white/30">
+                Both prices below are in this currency. Customer-facing cards format
+                the symbol and separators from it.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-white/70">Selling Price ({currency})</label>
               <input
                 type="number"
                 value={sellingPrice}
@@ -497,7 +520,11 @@ function ProductEditorContent() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-semibold text-white/70">MRP (₹)</label>
+              {/* "MRP" is India-specific (Legal Metrology Act). Outside India the
+                  same field is an advisory compare-at / RRP figure. */}
+              <label className="text-xs font-semibold text-white/70">
+                {currency === "INR" ? `MRP (${currency})` : `Compare-at price (${currency})`}
+              </label>
               <input
                 type="number"
                 value={mrp}

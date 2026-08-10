@@ -83,7 +83,14 @@ export interface Product {
   sku: string | null;
   price: number | null;
   selling_price?: number | null;
+  /** Compare-at / struck-through price. In India this is the legal MRP. */
   mrp?: number | null;
+  /**
+   * ISO 4217 code the price fields are denominated in. Optional so rows read
+   * before the currency column existed still typecheck; formatMoney() defaults
+   * to INR, which is what every pre-existing row is.
+   */
+  currency?: string | null;
   discount_percentage?: number | null;
   image_url: string;
   shop_url?: string | null;

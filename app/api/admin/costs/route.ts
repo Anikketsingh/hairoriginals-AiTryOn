@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireCostsAccess } from "@/lib/admin-auth";
+import { getGeminiModelInfo } from "@/lib/gemini-models";
 
 export async function GET() {
   const admin = await requireCostsAccess();
@@ -17,10 +18,13 @@ export async function GET() {
       return NextResponse.json({ error: "Failed to fetch credits metrics" }, { status: 500 });
     }
 
-    // 2. Fetch total generations count grouped by status
+    // 2. Fetch total generations count grouped by status. `model` is needed to
+    //    cost each generation at the rate of the model that actually ran —
+    //    the model is admin-configurable and the three options differ 4x in
+    //    price (see lib/gemini-models.ts).
     const { data: generationsData, error: genErr } = await supabaseAdmin
       .from("generations")
-      .select("status, duration_ms");
+      .select("status, duration_ms, model");
 
     if (genErr) {
       console.error("[api/admin/costs] generations error:", genErr.message);
@@ -55,18 +59,38 @@ export async function GET() {
     let failedGenerations = 0;
     let totalDurationMs = 0;
 
+    // Cost is accumulated per model rather than at one flat rate. The previous
+    // `completed * ₹5.00` contradicted the app's own data: lib/gemini-models.ts
+    // prices the three selectable models at $0.0336 / $0.067 / $0.134 per
+    // image — a 4x spread — and the model is admin-configurable, so a single
+    // constant could not be right for more than one configuration.
+    const costByModel: Record<string, { count: number; usd: number }> = {};
+    let estimatedCostUsd = 0;
+    let uncostedGenerations = 0;
+
     generationsData?.forEach((g) => {
       totalGenerations++;
       if (g.status === "completed") completedGenerations++;
       else if (g.status === "failed") failedGenerations++;
       totalDurationMs += g.duration_ms ?? 0;
+
+      // Only completed generations bill — a failed call produces no image.
+      if (g.status !== "completed") return;
+
+      const info = g.model ? getGeminiModelInfo(g.model) : undefined;
+      if (!info) {
+        // Historic rows predating the model column, or a model since removed
+        // from the catalog. Surfaced rather than silently priced at zero.
+        uncostedGenerations++;
+        return;
+      }
+      const bucket = (costByModel[info.label] ??= { count: 0, usd: 0 });
+      bucket.count++;
+      bucket.usd += info.pricePerImageUsd;
+      estimatedCostUsd += info.pricePerImageUsd;
     });
 
     const avgDurationSeconds = completedGenerations > 0 ? (totalDurationMs / completedGenerations / 1000).toFixed(2) : "0.00";
-
-    // Cost per image generation is ₹5.00 INR
-    const costPerGenINR = 5.00;
-    const estimatedCostINR = completedGenerations * costPerGenINR;
 
     // Fetch last 10 credit grants for log
     const { data: recentGrants } = await supabaseAdmin
@@ -96,7 +120,11 @@ export async function GET() {
         completed: completedGenerations,
         failed: failedGenerations,
         avgDurationSeconds: Number(avgDurationSeconds),
-        estimatedCostINR,
+        // USD because that is the currency Google actually bills in. Reporting
+        // a derived INR figure would bake in a stale FX rate.
+        estimatedCostUsd: Number(estimatedCostUsd.toFixed(4)),
+        costByModel,
+        uncostedGenerations,
       },
       recentGrants: recentGrants || [],
       recentGenerations: recentGenerations || [],

@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { endOfDayIso, startOfDayIso } from "@/lib/date-range";
 
 export async function GET(request: NextRequest) {
   const admin = await requireAdmin(["super_admin", "content_manager"]);
@@ -14,17 +15,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const params = new URL(request.url).searchParams;
-    const dateFrom = params.get("dateFrom")?.trim();
-    const dateTo = params.get("dateTo")?.trim();
-    const fromIso = dateFrom ? new Date(dateFrom).toISOString() : null;
-    // dateTo comes in as a plain YYYY-MM-DD date — push to end of that day so
-    // rows created on the "to" date itself are included.
-    const toIso = (() => {
-      if (!dateTo) return null;
-      const end = new Date(dateTo);
-      end.setHours(23, 59, 59, 999);
-      return end.toISOString();
-    })();
+    // Both ends resolve in REPORTING_TIMEZONE so the window matches the
+    // calendar day the admin picked, and so analytics totals agree with the
+    // CRM list (lib/lead-filters.ts) for the same date range.
+    const fromIso = startOfDayIso(params.get("dateFrom")?.trim());
+    const toIso = endOfDayIso(params.get("dateTo")?.trim());
 
     // device_sessions has no created_at — first_seen is its creation timestamp.
     let sessionsQuery = supabaseAdmin.from("device_sessions").select("id", { count: "exact", head: true });

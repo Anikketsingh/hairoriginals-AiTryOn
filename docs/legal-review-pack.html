@@ -1,0 +1,723 @@
+<meta charset="utf-8">
+<title>HairOriginals AI Try-On — Legal Review Pack</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 20mm 18mm; }
+
+  * { box-sizing: border-box; }
+
+  html { font-size: 10.5pt; }
+
+  body {
+    font-family: "Charter", "Georgia", "Times New Roman", serif;
+    color: #1a1a1a;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  h1, h2, h3, .label, th, .cover-meta, .badge, .siglabel {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+
+  /* ---------- cover ---------- */
+  .cover { page-break-after: always; padding-top: 12mm; }
+
+  .rule-top {
+    border-top: 3px solid #1a1a1a;
+    padding-top: 6mm;
+    margin-bottom: 14mm;
+  }
+
+  .cover h1 {
+    font-size: 26pt;
+    line-height: 1.15;
+    margin: 0 0 4mm;
+    letter-spacing: -0.4pt;
+  }
+
+  .cover .subtitle {
+    font-size: 13pt;
+    color: #555;
+    margin: 0 0 14mm;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-weight: 400;
+  }
+
+  .cover-meta {
+    font-size: 9pt;
+    color: #555;
+    border-top: 1px solid #ccc;
+    padding-top: 4mm;
+    margin-top: 14mm;
+  }
+  .cover-meta div { margin-bottom: 1.5mm; }
+  .cover-meta strong { color: #1a1a1a; font-weight: 600; }
+
+  .ask {
+    background: #f6f4ef;
+    border-left: 3px solid #8a7a55;
+    padding: 6mm 7mm;
+    margin: 0 0 7mm;
+  }
+  .ask h3 { margin: 0 0 3mm; font-size: 11pt; }
+  .ask ol { margin: 0; padding-left: 6mm; }
+  .ask li { margin-bottom: 2.5mm; }
+  .ask li:last-child { margin-bottom: 0; }
+
+  /* ---------- structure ---------- */
+  section { page-break-before: always; }
+
+  h2 {
+    font-size: 15pt;
+    margin: 0 0 1mm;
+    padding-bottom: 2.5mm;
+    border-bottom: 2px solid #1a1a1a;
+    letter-spacing: -0.2pt;
+  }
+  h2 .sec-no {
+    display: block;
+    font-size: 8.5pt;
+    letter-spacing: 1.2pt;
+    text-transform: uppercase;
+    color: #8a7a55;
+    margin-bottom: 1.5mm;
+    font-weight: 600;
+  }
+  h2 + .lede {
+    color: #555;
+    font-size: 10pt;
+    margin: 4mm 0 6mm;
+  }
+
+  h3 {
+    font-size: 11pt;
+    margin: 7mm 0 2mm;
+    page-break-after: avoid;
+  }
+
+  p { margin: 0 0 3mm; orphans: 2; widows: 2; }
+  ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+  li { margin-bottom: 1.5mm; }
+
+  /* ---------- tables ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 6mm;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  th {
+    text-align: left;
+    font-size: 8pt;
+    letter-spacing: 0.6pt;
+    text-transform: uppercase;
+    color: #555;
+    border-bottom: 1.5px solid #1a1a1a;
+    padding: 0 3mm 2mm 0;
+    font-weight: 600;
+  }
+  td {
+    padding: 2.5mm 3mm 2.5mm 0;
+    border-bottom: 1px solid #e0ddd6;
+    vertical-align: top;
+  }
+  td:last-child, th:last-child { padding-right: 0; }
+  tr.flagged td { background: #fffaf0; }
+
+  /* ---------- inline bits ---------- */
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 9pt;
+    background: #f4f2ee;
+    padding: 0.3mm 1.2mm;
+    border-radius: 1.5px;
+  }
+
+  .new {
+    background: #fff3cd;
+    border-bottom: 1px dotted #8a7a55;
+    padding: 0 0.8mm;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 7.5pt;
+    letter-spacing: 0.5pt;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 0.8mm 2mm;
+    border-radius: 2px;
+    vertical-align: 1px;
+  }
+  .badge.high   { background: #f8d7da; color: #842029; }
+  .badge.med    { background: #fff3cd; color: #664d03; }
+  .badge.low    { background: #e2e3e5; color: #41464b; }
+  .badge.closed { background: #d1e7dd; color: #0f5132; }
+
+  .risk {
+    page-break-inside: avoid;
+    margin-bottom: 6mm;
+    padding-left: 5mm;
+    border-left: 2px solid #e0ddd6;
+  }
+  .risk h3 { margin-top: 0; }
+  .risk .decision {
+    font-size: 9.5pt;
+    background: #f6f4ef;
+    padding: 3mm 4mm;
+    margin-top: 2mm;
+  }
+  .risk .decision strong {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+  }
+
+  .note {
+    font-size: 9pt;
+    color: #555;
+    font-style: italic;
+    margin: 0 0 5mm;
+  }
+
+  .keyline {
+    font-size: 9pt;
+    border: 1px solid #e0ddd6;
+    padding: 3mm 4mm;
+    margin: 0 0 6mm;
+  }
+  .keyline strong { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 8.5pt; }
+
+  /* ---------- policy body ---------- */
+  .policy-doc { font-size: 10pt; }
+  .policy-doc h3 {
+    border-bottom: 1px solid #e0ddd6;
+    padding-bottom: 1.5mm;
+  }
+
+  .doc-head {
+    background: #f6f4ef;
+    padding: 4mm 5mm;
+    margin-bottom: 6mm;
+    font-size: 9.5pt;
+  }
+  .doc-head p { margin: 0; }
+
+  /* ---------- sign-off ---------- */
+  .signoff { margin-top: 10mm; page-break-inside: avoid; }
+  .signoff table { margin-bottom: 0; }
+  .signoff td { border-bottom: none; padding-top: 10mm; }
+  .signoff .sigline { border-bottom: 1px solid #999; height: 8mm; margin-bottom: 1.5mm; }
+  .signoff .siglabel {
+    font-size: 8pt;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5pt;
+  }
+</style>
+
+<div class="cover">
+  <div class="rule-top">
+    <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:9pt;letter-spacing:1.5pt;text-transform:uppercase;color:#8a7a55;font-weight:600">
+      For legal review &amp; sign-off
+    </div>
+  </div>
+
+  <h1>Privacy Policy &amp; Terms of Use</h1>
+  <p class="subtitle">HairOriginals AI Try-On — revision 2, aligned to the storefront policies</p>
+
+  <div class="keyline">
+    <strong>WHAT CHANGED IN THIS REVISION</strong><br><br>
+    Company details are no longer blank. The operating entity, registered address, CIN, and
+    Grievance Officer are now taken from the published storefront policies, so the app names
+    the same legal entity as hairoriginals.com. Both documents now also carry a governing-law
+    clause, an intellectual-property clause, and an explicit statement of how they relate to
+    the storefront's own policies — none of which the previous draft had.<br><br>
+    The Privacy Policy also carries a new prominent <strong>"We do not sell your data"</strong>
+    section, replacing a single buried line. It states the no-sale position in the terms US
+    state law uses ("money or other valuable consideration"), confirms that the named providers
+    are processors who cannot use the data for their own ends, and discloses the one arguable
+    exception: ad measurement events sent to Meta after consent, which some US statutes treat
+    as "sharing" even though nothing is sold. Overstating this would be a deceptive-practice
+    risk in itself, so it is stated precisely rather than absolutely.
+  </div>
+
+  <div class="ask">
+    <h3>What we need from you</h3>
+    <ol>
+      <li><strong>Confirm the two values that are not from the storefront policies</strong> — the privacy contact mailbox and the minimum age. Section 1 marks both.</li>
+      <li><strong>Decide the six open points</strong> in Section 2. Each is a business or legal choice; the draft answers each one way and says so.</li>
+      <li><strong>Approve or amend the text</strong> in Sections 3 and 4. Marking up this document is fine.</li>
+    </ol>
+  </div>
+
+  <p><strong>One thing to be aware of before reading.</strong> The storefront privacy policy does not
+  cover this product's main risk. It makes no mention of image or biometric processing, names no
+  third-party processors, states no retention periods, and limits itself to Indian jurisdiction. This
+  app uploads photographs of users' faces to Google for processing — special-category data under
+  GDPR Article 9 and biometric data under several US state statutes. The app-specific sections in
+  Section 3 therefore <em>add to</em> the storefront policy and cannot be replaced by linking to it.
+  Section 5 sets out the gap in detail.</p>
+
+  <p>Sections 3 and 4 are the complete live text of both documents. They were drafted to describe what
+  the application actually does, so the disclosures are accurate — but they have <strong>not been
+  reviewed by a lawyer</strong> and are not legal advice.</p>
+
+  <div class="cover-meta">
+    <div><strong>Product</strong> &nbsp; HairOriginals AI Try-On (web app)</div>
+    <div><strong>Entity</strong> &nbsp; KrisOriginals Pvt. Ltd — CIN U51909HR2018PTC074470</div>
+    <div><strong>Documents</strong> &nbsp; Privacy Policy; Terms of Use</div>
+    <div><strong>Revision date</strong> &nbsp; 8 August 2026</div>
+    <div><strong>Markets</strong> &nbsp; India plus international, including EEA/UK and the US</div>
+    <div><strong>Prepared by</strong> &nbsp; Engineering</div>
+  </div>
+</div>
+
+<!-- ============ SECTION 1 ============ -->
+<section>
+  <h2><span class="sec-no">Section 1</span>Company details, as now published</h2>
+  <p class="lede">These values are live in both documents. Everything unshaded was taken from the storefront's published privacy policy and terms; the two shaded rows are app-specific choices that need your confirmation.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:26%">Field</th>
+        <th style="width:44%">Value now published</th>
+        <th style="width:30%">Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Legal entity</strong></td>
+        <td>KrisOriginals Pvt. Ltd, trading as HairOriginals</td>
+        <td>Storefront privacy policy</td>
+      </tr>
+      <tr>
+        <td><strong>CIN</strong></td>
+        <td>U51909HR2018PTC074470</td>
+        <td>Storefront privacy policy</td>
+      </tr>
+      <tr>
+        <td><strong>Registered address</strong></td>
+        <td>Plot No. 220, Udyog Vihar, Phase IV, Sector 18, Gurugram, Haryana – 122015, India</td>
+        <td>Storefront privacy policy</td>
+      </tr>
+      <tr class="flagged">
+        <td><strong>Privacy contact</strong></td>
+        <td><span class="new">aniket.kushwaha@hairoriginals.com</span></td>
+        <td><strong>Not from storefront</strong> — supplied for this app. Confirm this mailbox will be monitored.</td>
+      </tr>
+      <tr>
+        <td><strong>Grievance Officer</strong></td>
+        <td>Mayank Sharma — feedback@hairoriginals.com, +91 9267993875</td>
+        <td>Storefront privacy policy</td>
+      </tr>
+      <tr>
+        <td><strong>Order support</strong></td>
+        <td>help@hairoriginals.com, +91 8700797103</td>
+        <td>Storefront privacy policy</td>
+      </tr>
+      <tr class="flagged">
+        <td><strong>Minimum age</strong></td>
+        <td><span class="new">16</span></td>
+        <td><strong>Diverges from storefront</strong>, which states 13. See item 2.1.</td>
+      </tr>
+      <tr>
+        <td><strong>Governing law</strong></td>
+        <td>India; exclusive jurisdiction of the courts at Gurugram, Haryana</td>
+        <td>Derived from the storefront's India-operated clause and registered office</td>
+      </tr>
+      <tr>
+        <td><strong>Last updated</strong></td>
+        <td>8 August 2026</td>
+        <td>Set to this revision. Change to your approval date if later.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="note">Engineering note: all of the above live in one configuration file and propagate to both documents automatically. Changing any value is a one-line edit, not a rewrite.</p>
+
+  <h3>Two answers we need in writing</h3>
+  <p><strong>1. Is aniket.kushwaha@hairoriginals.com the right destination for data-deletion requests?</strong>
+  It is a named individual rather than a role mailbox, so it will break when that person is unavailable
+  or leaves. If you would rather this go to a role address — <code>privacy@</code>, or the existing
+  <code>feedback@</code> that the Grievance Officer already uses — say so and we will change it.</p>
+
+  <p><strong>2. Is 16 the right minimum age?</strong> The storefront says 13. We set 16 for the app
+  because it collects facial images, and 16 is the highest digital-consent age used across EEA member
+  states. Item 2.1 explains what 16 still leaves exposed.</p>
+</section>
+
+<!-- ============ SECTION 2 ============ -->
+<section>
+  <h2><span class="sec-no">Section 2</span>Open points needing a decision</h2>
+  <p class="lede">Six items. Each is a choice the draft currently answers one way, stated below so you can confirm or overrule it. Two items from the previous revision are now closed and noted at the end.</p>
+
+  <div class="risk">
+    <h3>2.1 &nbsp;Minors' facial images <span class="badge high">Highest exposure</span></h3>
+    <p>The app is set to 16+, above the storefront's 13, because a facial image processed to generate a likeness is special-category data under GDPR Article 9 and "biometric information" under several US state statutes.</p>
+    <p>16 does not remove the exposure — it narrows it. A 16- or 17-year-old is still a minor, and their biometric data attracts the same treatment. The concrete risk is the <strong>Illinois Biometric Information Privacy Act</strong>: statutory damages of <strong>USD 1,000 per negligent violation and USD 5,000 per reckless violation</strong>, assessed per person, with a private right of action. BIPA also requires a <em>written</em> release and a <em>published written retention and destruction schedule</em> before collection — obligations that go beyond a tick-box.</p>
+    <p>Separately, no age verification is performed. The requirement is stated in the terms, but users are never asked to confirm their age, so nothing prevents a 12-year-old from uploading a photo.</p>
+    <div class="decision">
+      <strong>Current position:</strong> 16+ stated in the terms; explicit tick-box consent before each upload; no age check.<br><br>
+      <strong>Decisions needed:</strong> (a) Confirm 16, or raise to 18 to keep minors' biometric data out entirely. (b) Should we add an age self-declaration at signup, so the requirement is affirmative rather than merely stated? (c) Is tick-box consent sufficient, or do we need a distinct written biometric release and a published destruction schedule for BIPA? (d) Should we geo-block Illinois rather than accept the exposure?
+    </div>
+  </div>
+
+  <div class="risk">
+    <h3>2.2 &nbsp;No automated deletion mechanism exists <span class="badge high">High</span></h3>
+    <p>The policy promises deletion within 30 days of a request. There is <strong>no self-service delete button and no automated deletion job</strong> in the product — the promise can only be met by someone reading the privacy mailbox and acting on it by hand.</p>
+    <p>This now depends on a single named address (see Section 1). A commitment we cannot operationally honour is worse than no commitment, because it converts an ordinary backlog into a breach of our own published policy.</p>
+    <div class="decision">
+      <strong>Decision needed:</strong> Either (a) confirm a named owner and a backup will monitor the mailbox and action requests from launch, or (b) instruct us to build a self-service deletion flow before launch.
+    </div>
+  </div>
+
+  <div class="risk">
+    <h3>2.3 &nbsp;Photos are stored indefinitely, not discarded <span class="badge high">High</span></h3>
+    <p>Both the uploaded photograph and every generated image are retained so users can revisit past try-ons in a "My Looks" gallery. Deleting the source photo immediately after generation would remove that feature but would sharply cut the volume of biometric data held at rest — and would largely answer the BIPA destruction-schedule point in 2.1.</p>
+    <div class="decision">
+      <strong>Current position:</strong> retained while the account is active; deleted within 30 days of a request, subject to legal retention obligations.<br><br>
+      <strong>Decision needed:</strong> Accept indefinite retention, or set a hard automatic expiry — for example, delete source photos after 30, 90, or 180 days whether or not the user asks?
+    </div>
+  </div>
+
+  <div class="risk">
+    <h3>2.4 &nbsp;Photos are sent to Google for processing <span class="badge med">Medium</span></h3>
+    <p>Generation is performed by Google's Gemini API. The user's photograph and the product image leave our infrastructure and are processed by Google, potentially outside the user's own country. We do not use uploaded photos to train any model, and the policy says so.</p>
+    <p>The storefront privacy policy names no third-party processors at all, so this disclosure exists only in the app policy.</p>
+    <div class="decision">
+      <strong>Current position:</strong> Google named explicitly; cross-border transfers stated to rely on the provider's standard contractual clauses or equivalent safeguards.<br><br>
+      <strong>Decision needed:</strong> Confirm whether a Data Processing Addendum with Google is executed, and whether you want the specific transfer mechanism named in the text rather than described generically.
+    </div>
+  </div>
+
+  <div class="risk">
+    <h3>2.5 &nbsp;Cookie consent is shown only in Europe <span class="badge med">Medium</span></h3>
+    <p>The consent banner appears based on the visitor's browser timezone: EEA, UK, and Swiss visitors must opt in before any analytics or advertising script loads. Elsewhere those scripts load without a prompt. Timezone detection is approximate — a VPN or a traveller defeats it.</p>
+    <p>One strictly necessary cookie meters free try-on credits and is not optional; this is disclosed.</p>
+    <div class="decision">
+      <strong>Decision needed:</strong> Accept the region-based approach, or require opt-in for <em>all</em> visitors worldwide? Universal opt-in is easier to defend and removes the geolocation-accuracy problem, at some cost to analytics coverage and ad measurement.
+    </div>
+  </div>
+
+  <div class="risk">
+    <h3>2.6 &nbsp;Cookie consent cannot be withdrawn in the app <span class="badge med">Medium</span></h3>
+    <p>The consent decision is stored in the visitor's browser and the banner is never shown again. There is <strong>no cookie-settings screen and no way to change the answer</strong> once given. GDPR Article 7(3) requires that withdrawing consent be as easy as giving it, so an accept-once-forever design is the weak point here — not the banner itself.</p>
+    <p>The policy therefore tells users the honest workaround: clearing the site's browser data resets the choice. That is accurate but is not what Article 7(3) has in mind.</p>
+    <div class="decision">
+      <strong>Decision needed:</strong> Should we build a cookie-settings control that lets users change their answer, and a matching link in the app footer? This is a small piece of work and it removes the Article 7(3) argument entirely.
+    </div>
+  </div>
+
+  <h3>Closed since the previous revision</h3>
+  <p><span class="badge closed">Closed</span> &nbsp;<strong>Blank company details.</strong> All six placeholders are filled from the storefront policies and no longer render as visible <code>TODO</code> text to users.</p>
+  <p><span class="badge closed">Closed</span> &nbsp;<strong>Missing terms clauses.</strong> Governing law and jurisdiction, an intellectual-property clause, and a user indemnity for photos uploaded without permission have been added to the Terms. A formal arbitration clause is still absent — tell us if you want one.</p>
+</section>
+
+<!-- ============ SECTION 3 ============ -->
+<section class="policy-doc">
+  <h2><span class="sec-no">Section 3 — live text</span>Privacy Policy</h2>
+
+  <div class="doc-head">
+    <p><strong>Last updated:</strong> 8 August 2026 &nbsp;·&nbsp; Shaded values are app-specific rather than taken from the storefront policies.</p>
+  </div>
+
+  <p>This policy explains what the HairOriginals AI Try-On app collects, why, who it is shared with, and how to get it deleted. It adds to the HairOriginals privacy policy rather than replacing it: the storefront policy governs browsing and purchases, while this one covers the photo you upload here and everything the try-on does with it.</p>
+
+  <h3>Who controls your data</h3>
+  <p>KrisOriginals Pvt. Ltd (CIN U51909HR2018PTC074470), trading as HairOriginals, of Plot No. 220, Udyog Vihar, Phase IV, Sector 18, Gurugram, Haryana – 122015, India, is the controller of the personal data described here. Privacy requests go to <span class="new">aniket.kushwaha@hairoriginals.com</span>.</p>
+  <p>Purchases on the HairOriginals storefront are governed by the storefront privacy policy. Where the two documents differ on the handling of photos you upload to this app, this policy applies.</p>
+
+  <h3>Your photo, and why it needs special consent</h3>
+  <p>The core feature requires a photo of your face. A facial image processed to generate a likeness is treated as <strong>biometric / special-category data</strong> under the EU/UK GDPR (Article 9) and under US state biometric laws including the Illinois Biometric Information Privacy Act. We process it only on your <strong>explicit consent</strong>, which you give by ticking the consent box before uploading. The box is unticked by default and is asked again for each new photo, so consent is never assumed from a previous try-on. You can withdraw consent at any time by requesting deletion.</p>
+  <p>Your uploaded photo is <strong>stored</strong>, not discarded after processing, so your past try-ons remain visible in "My Looks". Both the original photo and each generated image are retained until you request deletion or the retention period below elapses.</p>
+  <p>We do not use your photo to train any AI model, and we do not use it for facial recognition, identification, or matching you against any database.</p>
+
+  <h3>What else we collect</h3>
+  <ul>
+    <li><strong>Phone number</strong> — used to sign you in via one-time code, and as your account identifier.</li>
+    <li><strong>Name and email</strong> — only if you provide them when requesting a stylist consultation.</li>
+    <li><strong>Device and usage data</strong> — a hashed device fingerprint, a hashed IP address, and a device cookie. These exist to meter free try-on credits and prevent abuse; this is strictly necessary to run the service.</li>
+    <li><strong>Try-on activity</strong> — which products you viewed, tried, and saved, plus any feedback or rating you submit.</li>
+  </ul>
+
+  <h3>Who we share it with</h3>
+  <ul>
+    <li><strong>Google (Gemini API)</strong> — receives your uploaded photo and the product image in order to generate the try-on. Processing occurs on Google infrastructure, which may be outside your country.</li>
+    <li><strong>Supabase</strong> — database, authentication, and image storage.</li>
+    <li><strong>Digicuro CRM</strong> — if you request a stylist consultation, your contact details and links to your generated looks are sent so a stylist can follow up.</li>
+    <li><strong>SMS providers</strong> — your phone number is sent to the provider that delivers your one-time code (Nimbus for Indian numbers, Twilio elsewhere).</li>
+    <li><strong>Meta</strong> — if you accept analytics cookies, we send advertising measurement events. Email and phone are hashed before sending; your IP address is sent to Meta as part of this.</li>
+  </ul>
+  <p>Transfers outside your region rely on the relevant provider's standard contractual clauses or equivalent safeguards.</p>
+
+  <h3>We do not sell your data</h3>
+  <p><strong>We do not sell, rent, or trade your personal data, and we never disclose it to anyone in exchange for money or other valuable consideration.</strong> That covers your photos, your generated looks, your phone number, and your try-on history. We have no data-broker relationships and we do not license your data to anyone.</p>
+  <p>The companies named above are service providers working on our instructions. They may use your data only to deliver the specific service we have asked them for, and not for their own purposes. Your photo goes to Google to generate your try-on and for nothing else — not to train their models, and not to build a profile of you.</p>
+  <p>To be straightforward about the one exception: if you accept analytics cookies, we send advertising measurement events to Meta. No money changes hands, but some US state privacy laws still classify that as <strong>"sharing" for cross-context behavioural advertising</strong>, so we would rather name it than let you find out later. Decline cookies and it never happens. If you have already accepted and want to undo it, clearing this site's data in your browser resets the choice and we will ask you again.</p>
+
+  <h3>Where we operate</h3>
+  <p>We are established in India and the app is operated from there, but it is available to users elsewhere. Where you are in the EEA, the UK, or a US state with its own privacy or biometric statute, we apply the protections that law gives you — including the consent, access, and deletion rights set out below — regardless of where we are based.</p>
+
+  <h3>Cookies and tracking</h3>
+  <p>A device cookie is set to track your free credits — this is strictly necessary and is not optional. Analytics and advertising scripts (Meta Pixel, Vercel Analytics) load <strong>only after you accept</strong> where consent is required, and never before. Declining leaves the app fully functional.</p>
+
+  <h3>How long we keep it</h3>
+  <p>Photos, generated images, and account data are kept while your account is active. If you request deletion we remove them within 30 days, except where we are required to retain records by law.</p>
+  <p>To ask for deletion, email <span class="new">aniket.kushwaha@hairoriginals.com</span> from the address or phone number on your account, or contact the Grievance Officer below. Deleting your photos does not affect any order you have placed on the storefront.</p>
+
+  <h3>Your rights</h3>
+  <p>Depending on where you live, you may have the right to access, correct, delete, port, or restrict processing of your data, to object to processing, and to withdraw consent at any time without affecting prior processing. EEA/UK users may also complain to their local supervisory authority.</p>
+  <p>To exercise any of these, email <span class="new">aniket.kushwaha@hairoriginals.com</span>. We respond within the period required by applicable law.</p>
+
+  <h3>Children</h3>
+  <p>The app is not intended for anyone under <span class="new">16</span>, and we do not knowingly collect data — least of all facial images — from anyone below that age. If you believe someone underage has used the app, contact us and we will delete the data.</p>
+
+  <h3>Grievance officer (India)</h3>
+  <p>Under the Digital Personal Data Protection Act 2023, Indian users may contact our Grievance Officer, Mayank Sharma, at feedback@hairoriginals.com or +91 9267993875.</p>
+</section>
+
+<!-- ============ SECTION 4 ============ -->
+<section class="policy-doc">
+  <h2><span class="sec-no">Section 4 — live text</span>Terms of Use</h2>
+
+  <div class="doc-head">
+    <p><strong>Last updated:</strong> 8 August 2026 &nbsp;·&nbsp; Shaded values are app-specific rather than taken from the storefront policies.</p>
+  </div>
+
+  <p>These terms govern your use of the HairOriginals AI Try-On app. By using the app you agree to them. They sit alongside the HairOriginals storefront terms, which continue to govern anything you buy.</p>
+
+  <h3>Who you are contracting with</h3>
+  <p>The app is operated by KrisOriginals Pvt. Ltd (CIN U51909HR2018PTC074470), trading as HairOriginals, of Plot No. 220, Udyog Vihar, Phase IV, Sector 18, Gurugram, Haryana – 122015, India.</p>
+
+  <h3>What the service does</h3>
+  <p>The app generates an AI preview of how a HairOriginals product might look on you, from a photo you upload. Previews are illustrative only. They are machine-generated approximations and will not exactly match the real product on your hair — colour, texture, density, and fit vary in reality.</p>
+
+  <h3>Your account</h3>
+  <p>Accounts are created and accessed with a one-time code sent to your phone. You are responsible for keeping access to that number secure, and for activity under your account. You must be <span class="new">16</span> or older to use the app. If you are under 18, you may use it only with the consent of a parent or guardian.</p>
+
+  <h3>Photos you upload</h3>
+  <p>You confirm that, for every photo you upload:</p>
+  <ul>
+    <li>it is of you, or you have the permission of the person shown;</li>
+    <li>you have the right to upload it and to have it processed as described in the Privacy Policy;</li>
+    <li>it does not contain anyone under <span class="new">16</span>.</li>
+  </ul>
+  <p>You keep ownership of your photos. You grant us a limited licence to process, store, and display them solely to provide the try-on service to you. That licence ends when you delete the content or your account.</p>
+  <p>If you upload a photo of someone else without their permission, you are responsible for any claim that results from it.</p>
+
+  <h3>Acceptable use</h3>
+  <p>You must not:</p>
+  <ul>
+    <li>upload photos of other people without their permission;</li>
+    <li>use the app to create misleading, defamatory, or explicit imagery;</li>
+    <li>attempt to bypass credit limits, rate limits, or authentication;</li>
+    <li>scrape, resell, or automate access to the service.</li>
+  </ul>
+  <p>We may suspend accounts that breach these terms.</p>
+
+  <h3>Credits</h3>
+  <p>Try-ons are metered with credits. Credits have no cash value, are not transferable, are not refundable, and may be changed or withdrawn at any time.</p>
+
+  <h3>Our content</h3>
+  <p>The app, its product imagery, and the HairOriginals name and marks belong to us or our licensors. Generated previews are provided for your personal use; you may share them, but you may not use them to advertise or sell anything.</p>
+
+  <h3>Products and purchases</h3>
+  <p>Prices shown in the app are indicative and may differ from the storefront at checkout. Purchases happen on the HairOriginals storefront and are governed by its own terms and conditions, including everything to do with payment, shipping, returns, and exchanges — not these terms.</p>
+
+  <h3>Availability and liability</h3>
+  <p>The app is provided "as is", without warranty of any kind. We do not guarantee uninterrupted availability, and generation may fail or be delayed. To the fullest extent permitted by law, we are not liable for indirect or consequential loss, or for decisions made on the basis of a generated preview. Nothing here limits liability that cannot be limited by law, including for death or personal injury caused by negligence.</p>
+
+  <h3>Governing law</h3>
+  <p>These terms are governed by the laws of India, and the courts at Gurugram, Haryana, India have exclusive jurisdiction over any dispute. If you are a consumer resident elsewhere, this does not remove any protection your local law gives you that cannot be waived by agreement.</p>
+
+  <h3>Changes and contact</h3>
+  <p>We may update these terms; material changes will be reflected in the "last updated" date above. Questions about the app or your data go to <span class="new">aniket.kushwaha@hairoriginals.com</span>. For help with an order, contact help@hairoriginals.com or +91 8700797103.</p>
+
+  <p class="note" style="margin-top:8mm">Still not addressed, if you want it: a formal arbitration or dispute-resolution procedure, and a monetary cap on liability. The draft relies on the general limitation clause above.</p>
+</section>
+
+<!-- ============ SECTION 5 ============ -->
+<section>
+  <h2><span class="sec-no">Section 5 — factual annex</span>What the app collects, and what the storefront policy misses</h2>
+  <p class="lede">Taken from the implementation rather than from the policy, so you can verify the disclosures in Sections 3 and 4 without reading source code.</p>
+
+  <h3>Gap against the storefront privacy policy</h3>
+  <p>Each row is something the app does that the published storefront policy does not address. This is why the app needs its own document rather than a link.</p>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:32%">Storefront policy</th>
+        <th style="width:32%">What the app actually does</th>
+        <th style="width:36%">Consequence</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>No mention of images, photographs, or biometric data</td>
+        <td>Collects and stores facial photographs; sends them to a third party for AI processing</td>
+        <td>No lawful basis disclosed for special-category data. GDPR Art. 9 and BIPA both require notice and consent specific to biometrics.</td>
+      </tr>
+      <tr>
+        <td>Names no third-party processors, only generic categories</td>
+        <td>Sends data to Google, Supabase, Digicuro, Nimbus, Twilio, Meta, Vercel</td>
+        <td>GDPR Art. 13 expects recipients or categories to be identified. Naming them is the safer reading.</td>
+      </tr>
+      <tr>
+        <td>States no retention periods</td>
+        <td>Retains photos and generated images indefinitely while the account is active</td>
+        <td>BIPA requires a published retention and destruction schedule before collection.</td>
+      </tr>
+      <tr>
+        <td>"Not intended to subject us to the laws or jurisdiction of any … other than India"</td>
+        <td>Gates cookie consent for EEA/UK visitors; routes SMS via Twilio for non-Indian numbers</td>
+        <td>The product is built for international users, so the India-only stance does not describe it. Section 3 states this openly instead.</td>
+      </tr>
+      <tr>
+        <td>Age threshold of 13</td>
+        <td>Set to 16 for the app</td>
+        <td>Deliberate divergence — see item 2.1.</td>
+      </tr>
+      <tr>
+        <td>No "last updated" date, despite referring to one</td>
+        <td>Both app documents display 8 August 2026</td>
+        <td>Worth fixing on the storefront too; a policy that cites a date it does not show is a weak point.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Data inventory</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:23%">Data</th>
+        <th style="width:29%">Purpose</th>
+        <th style="width:24%">Stored where</th>
+        <th style="width:24%">Basis in draft</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Facial photograph</strong></td>
+        <td>Input to AI generation; retained for the "My Looks" gallery</td>
+        <td>Supabase storage; transmitted to Google Gemini</td>
+        <td>Explicit consent, per photo</td>
+      </tr>
+      <tr>
+        <td><strong>Generated try-on images</strong></td>
+        <td>Delivering the result; saved history</td>
+        <td>Supabase storage</td>
+        <td>Explicit consent / contract</td>
+      </tr>
+      <tr>
+        <td><strong>Phone number</strong></td>
+        <td>One-time-code sign-in; account identifier</td>
+        <td>Supabase auth; sent to Nimbus (India) or Twilio (elsewhere)</td>
+        <td>Contract — necessary to provide the service</td>
+      </tr>
+      <tr>
+        <td><strong>Name and email</strong></td>
+        <td>Stylist consultation follow-up</td>
+        <td>Supabase; forwarded to Digicuro CRM</td>
+        <td>Consent — only if a consultation is requested</td>
+      </tr>
+      <tr>
+        <td><strong>Hashed device fingerprint</strong></td>
+        <td>Metering free credits; abuse prevention</td>
+        <td>Supabase</td>
+        <td>Legitimate interests — strictly necessary</td>
+      </tr>
+      <tr>
+        <td><strong>Hashed IP address</strong></td>
+        <td>Rate limiting; abuse prevention</td>
+        <td>Supabase</td>
+        <td>Legitimate interests — strictly necessary</td>
+      </tr>
+      <tr>
+        <td><strong>Device cookie</strong></td>
+        <td>Tracking free-credit balance</td>
+        <td>User's browser</td>
+        <td>Strictly necessary — not subject to consent</td>
+      </tr>
+      <tr>
+        <td><strong>Try-on activity</strong></td>
+        <td>Product analytics; feedback</td>
+        <td>Supabase</td>
+        <td>Legitimate interests</td>
+      </tr>
+      <tr>
+        <td><strong>Ad measurement events</strong></td>
+        <td>Ad performance measurement</td>
+        <td>Sent to Meta</td>
+        <td>Consent — only after the user accepts</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Things the app does not do</h3>
+  <p>Stated so the policy's negative claims can be verified: uploaded photos are not used to train any AI model; there is no facial recognition, identification, or matching against any database; no personal data is sold, rented, traded, or disclosed for money or other valuable consideration; there are no data-broker relationships; and no analytics or advertising script loads before consent where consent is required.</p>
+  <p>The one qualification on the no-sale claim is the Meta ad-measurement flow, which fires only after consent and transfers no money. It is disclosed in the policy under the same heading as the no-sale statement rather than being left for a reader to discover in the sharing list.</p>
+
+  <h3>Regulatory exposure by market</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:26%">Market</th>
+        <th style="width:28%">Regime</th>
+        <th style="width:46%">Principal obligation triggered</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>India</td>
+        <td>DPDP Act 2023</td>
+        <td>Named Grievance Officer with published contact details; notice at collection. Verifiable parental consent is required for anyone under 18, which the 16+ threshold does not satisfy on its own.</td>
+      </tr>
+      <tr>
+        <td>EEA / UK / Switzerland</td>
+        <td>GDPR &amp; UK GDPR; ePrivacy</td>
+        <td>Art. 9 explicit consent for biometric data; Art. 13 notice; prior consent before non-essential cookies; safeguards for international transfers</td>
+      </tr>
+      <tr>
+        <td>Illinois, USA</td>
+        <td>BIPA</td>
+        <td>Written release before collection; published retention and destruction schedule; USD 1,000–5,000 statutory damages per violation, private right of action</td>
+      </tr>
+      <tr>
+        <td>Texas / Washington, USA</td>
+        <td>CUBI; My Health My Data</td>
+        <td>Consent before capture of biometric identifiers; no private right of action in Texas, but Washington's statute does provide one</td>
+      </tr>
+      <tr>
+        <td>California, USA</td>
+        <td>CCPA / CPRA</td>
+        <td>Biometric data is "sensitive personal information": notice, right to limit use, and deletion rights</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="note">This annex is a factual description of the software, compiled by engineering. The regulatory column indicates why review is needed; it is not a legal conclusion about compliance. Note in particular the India row: the DPDP Act treats everyone under 18 as a child requiring verifiable parental consent, which is a live question for the 16+ threshold in item 2.1.</p>
+
+  <div class="signoff">
+    <h3 style="border-bottom:2px solid #1a1a1a;padding-bottom:2.5mm">Sign-off</h3>
+    <table>
+      <tr>
+        <td style="width:48%">
+          <div class="sigline"></div>
+          <div class="siglabel">Reviewed by</div>
+        </td>
+        <td style="width:4%"></td>
+        <td style="width:48%">
+          <div class="sigline"></div>
+          <div class="siglabel">Date</div>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="3">
+          <div class="sigline"></div>
+          <div class="siglabel">Approved for launch / approved subject to the changes marked above (delete as applicable)</div>
+        </td>
+      </tr>
+    </table>
+  </div>
+</section>

@@ -10,6 +10,7 @@
  */
 
 import type { AdminContext } from "@/lib/admin-auth";
+import { endOfDayIso, startOfDayIso } from "@/lib/date-range";
 
 /**
  * Sort options the CRM list (and export, which mirrors the list's order)
@@ -64,18 +65,18 @@ export function applyLeadFilters<Q extends LeadFilterQuery<Q>>(
     q = q.or(`phone.ilike.%${query_}%,crm_lead_id.ilike.%${query_}%`);
   }
 
-  const dateFrom = params.get("dateFrom")?.trim();
-  if (dateFrom) {
-    q = q.gte("created_at", new Date(dateFrom).toISOString());
+  // Both ends resolve in REPORTING_TIMEZONE. Previously `dateFrom` was parsed
+  // as bare UTC midnight while `dateTo` used the server's local timezone, so
+  // the two ends of the same range disagreed with each other and neither
+  // matched the calendar day the admin actually picked.
+  const from = startOfDayIso(params.get("dateFrom")?.trim());
+  if (from) {
+    q = q.gte("created_at", from);
   }
 
-  const dateTo = params.get("dateTo")?.trim();
-  if (dateTo) {
-    // dateTo comes in as a plain YYYY-MM-DD date — push to end of that day
-    // so leads created on the "to" date itself are included.
-    const end = new Date(dateTo);
-    end.setHours(23, 59, 59, 999);
-    q = q.lte("created_at", end.toISOString());
+  const to = endOfDayIso(params.get("dateTo")?.trim());
+  if (to) {
+    q = q.lte("created_at", to);
   }
 
   if (params.get("qualifiedOnly") === "true") {

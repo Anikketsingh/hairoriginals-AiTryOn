@@ -11,6 +11,7 @@ import { cn } from "@/components/ui/cn";
 import { fileToUploadedImage, urlToUploadedImage } from "@/lib/image";
 import { trackAnalyticsEvent } from "@/lib/analytics-client";
 import { ACCEPTED_IMAGE_TYPES, type Category, type Product, type UploadedImage } from "@/lib/types";
+import { formatMoney } from "@/lib/format";
 
 interface StyleStepProps {
   productImage?: UploadedImage;
@@ -216,9 +217,9 @@ export default function StyleStep({ productImage, sessionToken, onSelect, onTryO
                       {p.name}
                     </p>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold text-ink">₹{price.toLocaleString()}</span>
+                      <span className="text-sm font-bold text-ink">{formatMoney(price, p.currency ?? undefined)}</span>
                       {p.mrp && p.mrp > price && (
-                        <span className="text-xs text-ink-faint line-through">₹{p.mrp.toLocaleString()}</span>
+                        <span className="text-xs text-ink-faint line-through">{formatMoney(p.mrp, p.currency ?? undefined)}</span>
                       )}
                     </div>
                   </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Coins, DollarSign, Download, Sparkles, CreditCard, Layers, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { formatCost } from "@/lib/format";
 
 interface CostsData {
   credits: {
@@ -15,7 +16,12 @@ interface CostsData {
     completed: number;
     failed: number;
     avgDurationSeconds: number;
-    estimatedCostINR: number;
+    /** USD — the currency Google actually bills Gemini in. */
+    estimatedCostUsd: number;
+    /** Per-model breakdown, keyed by model label. */
+    costByModel: Record<string, { count: number; usd: number }>;
+    /** Completed generations whose model couldn't be priced (historic rows). */
+    uncostedGenerations: number;
   };
   recentGrants: any[];
   recentGenerations: any[];
@@ -98,16 +104,34 @@ export default function AICostsPage() {
           <div className="flex items-center justify-between gap-3 mb-4">
             <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">Estimated AI Spend</span>
             <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-black shadow-md">
-              <span className="text-sm font-bold">₹</span>
+              <span className="text-sm font-bold">$</span>
             </div>
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight break-words">
-              ₹{data.generations.estimatedCostINR.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCost(data.generations.estimatedCostUsd, "USD")}
             </span>
             <span className="text-[10px] text-white/40">
-              Based on ₹5.00 per completed image try-on
+              Priced per model at Gemini&apos;s published per-image rates
             </span>
+            {/* Per-model split: the three selectable models differ 4x in price,
+                so a single blended number hides where spend actually goes. */}
+            {Object.entries(data.generations.costByModel).length > 0 && (
+              <div className="mt-2 flex flex-col gap-0.5">
+                {Object.entries(data.generations.costByModel).map(([label, m]) => (
+                  <div key={label} className="flex items-baseline justify-between gap-2 text-[10px] text-white/40">
+                    <span className="truncate">{label} × {m.count.toLocaleString()}</span>
+                    <span className="shrink-0 tabular-nums">{formatCost(m.usd, "USD")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {data.generations.uncostedGenerations > 0 && (
+              <span className="mt-1 text-[10px] text-amber-400/70">
+                {data.generations.uncostedGenerations.toLocaleString()} generation
+                {data.generations.uncostedGenerations === 1 ? "" : "s"} not costed (unknown model)
+              </span>
+            )}
           </div>
         </div>
 

@@ -293,6 +293,19 @@ export default function CustomerDashboardPage() {
             Sign out
           </button>
         )}
+
+        {/* Legal links. Required to be discoverable from the app, and this is
+            the only persistent non-flow surface — the bottom tab bar has no
+            room and is hidden on desktop. */}
+        <nav className="mx-auto mt-2 flex items-center gap-3 text-[11px] font-medium text-ink-faint">
+          <Link href="/privacy" className="underline-offset-4 transition hover:text-ink-soft hover:underline">
+            Privacy
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/terms" className="underline-offset-4 transition hover:text-ink-soft hover:underline">
+            Terms
+          </Link>
+        </nav>
       </main>
       <BottomNav />
     </>

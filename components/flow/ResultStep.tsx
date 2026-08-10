@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { trackAnalyticsEvent } from "@/lib/analytics-client";
 import { cn } from "@/components/ui/cn";
 import type { Product } from "@/lib/types";
+import { discountPercent, formatMoney } from "@/lib/format";
 
 interface ResultStepProps {
   imageUrl: string;
@@ -194,12 +195,16 @@ export default function ResultStep({
           <div className="min-w-0 flex-1">
             <p className="line-clamp-1 text-sm font-bold text-ink">{product.name}</p>
             <div className="mt-0.5 flex items-baseline gap-1.5">
-              <span className="text-[15px] font-extrabold text-ink">₹{price.toLocaleString()}</span>
+              <span className="text-[15px] font-extrabold text-ink">
+                {formatMoney(price, product.currency ?? undefined)}
+              </span>
               {hasDiscount && (
                 <>
-                  <span className="text-xs text-ink-faint line-through">₹{product.mrp!.toLocaleString()}</span>
+                  <span className="text-xs text-ink-faint line-through">
+                    {formatMoney(product.mrp, product.currency ?? undefined)}
+                  </span>
                   <span className="text-[11px] font-bold text-success">
-                    {Math.round(((product.mrp! - price) / product.mrp!) * 100)}% off
+                    {discountPercent(price, product.mrp)}% off
                   </span>
                 </>
               )}

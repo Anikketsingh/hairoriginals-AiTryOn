@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { reportingTimezoneLabel, toReportingWallClock } from "@/lib/date-range";
 import { applyLeadFilters, resolveSort } from "@/lib/lead-filters";
 import { crmMediaUrl } from "@/lib/leads";
 
@@ -39,7 +40,14 @@ const INTEREST_LABEL: Record<string, string> = {
   browsing: "Just browsing",
 };
 
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+/**
+ * Suffix stamped on every timestamp column header, e.g. "Created At (GMT+5:30)".
+ *
+ * These columns were previously shifted into IST and emitted with no timezone
+ * label at all, so a reader outside India saw times silently offset by 5h30m
+ * with nothing indicating it.
+ */
+const TZ_SUFFIX = ` (${reportingTimezoneLabel()})`;
 
 interface UserRow {
   id: string;
@@ -100,13 +108,12 @@ interface ProductRow {
   name: string;
 }
 
-/** Converts a UTC ISO timestamp to an IST wall-clock Date for display. */
-function toIst(iso: string | null): Date | null {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return null;
-  return new Date(t + IST_OFFSET_MS);
-}
+/**
+ * Converts a UTC ISO timestamp to a reporting-timezone wall-clock Date for
+ * display in Excel date cells. Column headers carry TZ_SUFFIX so the shift is
+ * visible to the reader.
+ */
+const toDisplayTime = toReportingWallClock;
 
 /**
  * Excel treats a leading =, +, -, or @ as a formula. Free-text fields here
@@ -366,7 +373,7 @@ export async function GET(request: NextRequest) {
       { header: "Try-ons (recorded)", key: "tryonsRecorded", width: 16 },
       { header: "Products Tried", key: "productsTried", width: 30 },
       { header: "Products Saved", key: "productsSaved", width: 30 },
-      { header: "Latest Look Date", key: "latestLookDate", width: 18, style: { numFmt: "yyyy-mm-dd hh:mm" } },
+      { header: "Latest Look Date" + TZ_SUFFIX, key: "latestLookDate", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
       { header: "Latest Product", key: "latestProduct", width: 22 },
       { header: "Latest Look URL", key: "latestLookUrl", width: 40 },
       { header: "Latest Photo URL", key: "latestPhotoUrl", width: 40 },
@@ -379,15 +386,15 @@ export async function GET(request: NextRequest) {
       { header: "Assigned Agent", key: "assignedAgent", width: 20 },
       { header: "Agent Actions", key: "actionCount", width: 14 },
       { header: "Last Action", key: "lastAction", width: 14 },
-      { header: "Last Action Date", key: "lastActionDate", width: 18, style: { numFmt: "yyyy-mm-dd hh:mm" } },
+      { header: "Last Action Date" + TZ_SUFFIX, key: "lastActionDate", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
       { header: "Last Note", key: "lastNote", width: 32 },
       { header: "Funnel Stage", key: "funnelStage", width: 12 },
       { header: "Source (raw)", key: "source", width: 14 },
-      { header: "First Seen", key: "firstSeen", width: 18, style: { numFmt: "yyyy-mm-dd hh:mm" } },
-      { header: "Last Seen", key: "lastSeen", width: 18, style: { numFmt: "yyyy-mm-dd hh:mm" } },
-      { header: "Created At", key: "createdAt", width: 18, style: { numFmt: "yyyy-mm-dd hh:mm" } },
-      { header: "Last Activity", key: "lastActivity", width: 18, style: { numFmt: "yyyy-mm-dd hh:mm" } },
-      { header: "Updated At", key: "updatedAt", width: 18, style: { numFmt: "yyyy-mm-dd hh:mm" } },
+      { header: "First Seen" + TZ_SUFFIX, key: "firstSeen", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
+      { header: "Last Seen" + TZ_SUFFIX, key: "lastSeen", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
+      { header: "Created At" + TZ_SUFFIX, key: "createdAt", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
+      { header: "Last Activity" + TZ_SUFFIX, key: "lastActivity", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
+      { header: "Updated At" + TZ_SUFFIX, key: "updatedAt", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
       { header: "Notes", key: "notes", width: 32 },
       { header: "CRM Lead ID", key: "crmLeadId", width: 16, style: { numFmt: "@" } },
       { header: "Lead ID", key: "id", width: 38, style: { numFmt: "@" } },
@@ -436,7 +443,7 @@ export async function GET(request: NextRequest) {
         tryonsRecorded: lead.generations_count,
         productsTried: sanitizeText(triedProductIds.map((id) => productNameById.get(id)).filter(Boolean).join("; ")),
         productsSaved: sanitizeText(savedProductIds.map((id) => productNameById.get(id)).filter(Boolean).join("; ")),
-        latestLookDate: toIst(latest?.created_at ?? null),
+        latestLookDate: toDisplayTime(latest?.created_at ?? null),
         latestProduct: sanitizeText(latest?.product_id ? productNameById.get(latest.product_id) : null),
         latestLookUrl: latest ? crmMediaUrl(latest.id, "result") : "",
         latestPhotoUrl: latest ? crmMediaUrl(latest.id, "source") : "",
@@ -449,15 +456,15 @@ export async function GET(request: NextRequest) {
         assignedAgent: sanitizeText(agent?.name),
         actionCount: leadActions.length,
         lastAction: latestAction?.action_type ?? "",
-        lastActionDate: toIst(latestAction?.created_at ?? null),
+        lastActionDate: toDisplayTime(latestAction?.created_at ?? null),
         lastNote: sanitizeText(latestAction?.notes),
         funnelStage: lead.funnel_stage_at_creation,
         source: lead.source,
-        firstSeen: toIst(session?.first_seen ?? null),
-        lastSeen: toIst(session?.last_seen ?? null),
-        createdAt: toIst(lead.created_at),
-        lastActivity: toIst(lead.last_activity_at),
-        updatedAt: toIst(lead.updated_at),
+        firstSeen: toDisplayTime(session?.first_seen ?? null),
+        lastSeen: toDisplayTime(session?.last_seen ?? null),
+        createdAt: toDisplayTime(lead.created_at),
+        lastActivity: toDisplayTime(lead.last_activity_at),
+        updatedAt: toDisplayTime(lead.updated_at),
         notes: sanitizeText(lead.notes),
         crmLeadId: lead.crm_lead_id ?? "",
         id: lead.id,
