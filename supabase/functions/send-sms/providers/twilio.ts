@@ -29,9 +29,24 @@ const GSM7_SINGLE_SEGMENT_LIMIT = 160;
  *   21606 — 'From' not a valid, SMS-capable sender
  *   21610 — recipient has unsubscribed
  *   21614 — 'To' is not a mobile number
- *   20003 — authentication failed (our credentials are wrong)
+ *   20003 — permission denied (see CONFIG_ERROR_CODES)
  */
 const PERMANENT_ERROR_CODES = new Set([21211, 21408, 21606, 21610, 21614, 20003]);
+
+/**
+ * Account-level misconfiguration: nothing about the request is wrong, and no
+ * number will ever work until an operator fixes the Twilio account itself.
+ *
+ *   20003 — permission denied. Twilio reuses this for BOTH bad credentials and
+ *           an unapproved Trust Hub compliance profile ("Primary compliance
+ *           profile is not approved… complete the KYC process"). The latter
+ *           blocks every send on a brand-new account regardless of credentials,
+ *           sender pool, or Geo Permissions, so it must be distinguishable in
+ *           logs from an ordinary delivery failure.
+ *   21703 — Messaging Service not found or not authorized for this account
+ *   21704 — Messaging Service sender pool is empty
+ */
+const CONFIG_ERROR_CODES = new Set([20003, 21703, 21704]);
 
 interface TwilioError {
   code?: number;
@@ -104,9 +119,19 @@ export async function sendViaTwilio(e164: string, otp: string): Promise<SendResu
   }
 
   const permanent = error.code !== undefined && PERMANENT_ERROR_CODES.has(error.code);
-  console.error(
-    `[send-sms] twilio rejected send: http=${res.status} code=${error.code ?? "?"} permanent=${permanent} msg=${error.message ?? "(none)"}`,
-  );
+  const misconfigured = error.code !== undefined && CONFIG_ERROR_CODES.has(error.code);
+
+  if (misconfigured) {
+    // Shout, because this affects every send until someone fixes the account —
+    // it is not a per-message failure and no amount of retrying will clear it.
+    console.error(
+      `[send-sms] TWILIO ACCOUNT MISCONFIGURED (code=${error.code}) — ALL sends will fail until fixed: ${error.message ?? "(none)"}`,
+    );
+  } else {
+    console.error(
+      `[send-sms] twilio rejected send: http=${res.status} code=${error.code ?? "?"} permanent=${permanent} msg=${error.message ?? "(none)"}`,
+    );
+  }
 
   return {
     ok: false,
@@ -130,6 +155,13 @@ function userFacingMessage(code: number | undefined): string {
       return "We can't send codes to that country yet.";
     case 21610:
       return "This number has opted out of messages from us.";
+    case 20003:
+    case 21703:
+    case 21704:
+      // Never tell someone to "try again in a moment" for an account-level
+      // fault — retrying cannot possibly help, and inviting it just burns
+      // their time and our rate limits.
+      return "We're unable to send codes right now. Please try again later.";
     default:
       return "We couldn't send your code. Please try again in a moment.";
   }
