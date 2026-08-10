@@ -76,8 +76,28 @@ const NON_US_CA_NANP: Record<string, string> = {
 };
 
 /**
- * Resolves an E.164 number to an ISO 3166-1 alpha-2 country code.
+ * Coerces a phone number to canonical E.164 with a leading `+`.
+ *
+ * Supabase Auth stores `auth.users.phone` as bare digits ("919876543210") and
+ * hands the hook that form — NOT the "+919876543210" the client passed to
+ * signInWithOtp(). Assuming the `+` here caused every Indian number to resolve
+ * as an unknown country and hard-fail with a 400 that Auth rendered as a 500.
+ *
+ * Twilio's `To` parameter requires the `+`, so normalizing once at the boundary
+ * is what makes both providers correct rather than only Nimbus.
+ */
+export function normalizeE164(phone: string | undefined | null): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits ? `+${digits}` : null;
+}
+
+/**
+ * Resolves a phone number to an ISO 3166-1 alpha-2 country code.
  * Returns null when the country cannot be positively identified.
+ *
+ * Accepts both "+919876543210" and "919876543210". Callers should pass a
+ * normalizeE164() result; tolerating the bare form here is defence in depth so
+ * a missing `+` can never again be misread as "unknown country".
  *
  * Note: US and Canada are not distinguished from each other — both resolve to
  * "US". They route identically (Twilio) and are allowlisted together, so the
@@ -85,8 +105,7 @@ const NON_US_CA_NANP: Record<string, string> = {
  * distinguished, because those must be rejectable independently.
  */
 export function resolveCountry(e164: string): string | null {
-  if (!e164.startsWith("+")) return null;
-  const digits = e164.slice(1).replace(/\D/g, "");
+  const digits = (e164 ?? "").replace(/\D/g, "");
   if (!digits) return null;
 
   // +1 needs area-code granularity; handle it before the generic prefix match.

@@ -30,5 +30,6 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "supabase"]
+  "//": "tests/ runs under Node's type stripping (npm test), not Next's build, and imports the Deno edge function directly by .ts path — excluded here alongside supabase/ for the same reason.",
+  "exclude": ["node_modules", "supabase", "tests"]
 }

@@ -21,7 +21,13 @@
 //          SMS_INDIA_FALLBACK, plus the per-provider secrets in providers/.
 
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
-import { parseAllowlist, providerFor, resolveCountry, type Provider } from "./routing.ts";
+import {
+  normalizeE164,
+  parseAllowlist,
+  providerFor,
+  resolveCountry,
+  type Provider,
+} from "./routing.ts";
 import { sendViaNimbus } from "./providers/nimbus.ts";
 import { isTwilioConfigured, sendViaTwilio } from "./providers/twilio.ts";
 import type { SendResult } from "./providers/types.ts";
@@ -38,13 +44,25 @@ function json(body: unknown, status: number): Response {
   });
 }
 
+/**
+ * Error response in the shape Supabase Auth expects.
+ *
+ * `http_code` inside the body is required: per the Send SMS hook contract, if
+ * it is absent Auth defaults the client-facing response to a bare 500 and the
+ * message is lost. Omitting it is what turned a legible "unresolvable country"
+ * into an opaque `POST /auth/v1/otp 500` during the cutover.
+ */
+function fail(message: string, status: number): Response {
+  return json({ error: { http_code: status, message } }, status);
+}
+
 function send(provider: Provider, e164: string, otp: string): Promise<SendResult> {
   return provider === "nimbus" ? sendViaNimbus(e164, otp) : sendViaTwilio(e164, otp);
 }
 
 Deno.serve(async (request) => {
   if (request.method !== "POST") {
-    return json({ error: { message: "Method not allowed" } }, 405);
+    return fail("Method not allowed", 405);
   }
 
   // 1. Verify the Standard Webhooks signature. The secret is stored/env'd with
@@ -52,7 +70,7 @@ Deno.serve(async (request) => {
   const rawSecret = Deno.env.get("SEND_SMS_HOOK_SECRET");
   if (!rawSecret) {
     console.error("[send-sms] SEND_SMS_HOOK_SECRET is not set");
-    return json({ error: { message: "Hook is not configured" } }, 500);
+    return fail("Hook is not configured", 500);
   }
 
   const rawBody = await request.text();
@@ -66,29 +84,33 @@ Deno.serve(async (request) => {
     }) as SendSmsPayload;
   } catch (err) {
     console.error("[send-sms] signature verification failed:", err);
-    return json({ error: { message: "Invalid signature" } }, 401);
+    return fail("Invalid signature", 401);
   }
 
-  const e164 = payload.user?.phone?.trim();
+  // 2. Normalize to canonical E.164 before anything else touches the number.
+  //    Supabase hands us bare digits ("919876543210"), not the "+91…" the
+  //    client passed to signInWithOtp(); Twilio's `To` requires the `+`. Doing
+  //    this once here is what keeps both providers correct.
+  const e164 = normalizeE164(payload.user?.phone);
   const otp = payload.sms?.otp;
   if (!e164 || !otp) {
-    return json({ error: { message: "Missing phone or otp in payload" } }, 400);
+    return fail("Missing phone or otp in payload", 400);
   }
 
-  // 2. Resolve the destination country. Unresolvable numbers are rejected —
+  // 3. Resolve the destination country. Unresolvable numbers are rejected —
   //    we never guess and send.
   const country = resolveCountry(e164);
   if (!country) {
-    console.error(`[send-sms] unresolvable country for prefix ${e164.slice(0, 5)}`);
-    return json({ error: { message: "That doesn't look like a valid mobile number." } }, 400);
+    console.error(`[send-sms] unresolvable country for prefix ${e164.slice(0, 6)}`);
+    return fail("That doesn't look like a valid mobile number.", 400);
   }
 
-  // 3. Allowlist check — before any provider call, so a rejected country costs
+  // 4. Allowlist check — before any provider call, so a rejected country costs
   //    nothing. Mirrors Twilio Geo Permissions; both must be kept in sync.
   const allowlist = parseAllowlist(Deno.env.get("SMS_ALLOWED_COUNTRIES"));
   if (!allowlist.has(country)) {
     console.warn(`[send-sms] blocked non-allowlisted country: ${country}`);
-    return json({ error: { message: "We can't send codes to that country yet." } }, 403);
+    return fail("We can't send codes to that country yet.", 403);
   }
 
   // 4. Route.
@@ -136,5 +158,11 @@ Deno.serve(async (request) => {
   }
 
   // Surface the failure so signInWithOtp() reports it to the UI.
-  return json({ error: { message: result.message } }, 502);
+  //
+  // A non-retryable failure means the input is wrong (bad national-number
+  // length, invalid destination) and will fail identically on every retry —
+  // that is a 400, not a 502. Reporting it as 502 blamed the gateway for a
+  // client error and told the user to "try again in a moment", which never
+  // helps.
+  return fail(result.message, result.retryable ? 502 : 400);
 });
