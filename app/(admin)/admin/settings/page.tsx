@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { Sliders, Save, CheckCircle, Loader2, RefreshCw, Zap, ArrowLeftRight } from "lucide-react";
 import ModelPickerDialog from "@/components/admin/ModelPickerDialog";
+import MaintenanceToggle from "@/components/admin/MaintenanceToggle";
 import { DEFAULT_GEMINI_MODEL, getGeminiModelInfo } from "@/lib/gemini-models";
+import { isPasswordProtectedSetting } from "@/lib/settings-keys";
 
 export default function AIConfigPage() {
   const [settings, setSettings] = useState<Record<string, unknown>>({});
@@ -30,7 +32,12 @@ export default function AIConfigPage() {
     setSaving(true);
     setSuccess(false);
     try {
-      const payload = Object.entries(settings).map(([key, value]) => ({ key, value }));
+      // GET returns every settings row, including the ones behind the
+      // maintenance password. Posting those back would 403 the whole save, and
+      // they're owned by MaintenanceToggle anyway — so drop them here.
+      const payload = Object.entries(settings)
+        .filter(([key]) => !isPasswordProtectedSetting(key))
+        .map(([key, value]) => ({ key, value }));
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,6 +96,10 @@ export default function AIConfigPage() {
 
       {/* Form Sections */}
       <div className="flex flex-col gap-6">
+        {/* Site-wide kill switch. Sits above everything else and saves itself —
+            it carries the maintenance password, not the form's payload. */}
+        <MaintenanceToggle />
+
         {/* Gemini AI Settings */}
         <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-5">
           <div className="flex items-center gap-2 pb-3 border-b border-white/8">

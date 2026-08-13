@@ -11,6 +11,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSessionByToken } from "@/lib/funnel";
 import { parseJsonBody } from "@/lib/validate";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 const saveLookSchema = z.object({
   sessionToken: z.string().min(1, "Missing sessionToken."),
@@ -20,6 +21,9 @@ const saveLookSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const parsed = await parseJsonBody(request, saveLookSchema);
     if (parsed.error) return parsed.error;
     const { sessionToken, generationId, saved } = parsed.data;

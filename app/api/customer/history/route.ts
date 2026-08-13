@@ -10,11 +10,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSessionByToken } from "@/lib/funnel";
 import { toPublicStorageUrl } from "@/lib/supabase/public-url";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 const SIGNED_URL_TTL_SECONDS = 10 * 60;
 
 export async function GET(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const { searchParams } = new URL(request.url);
     const sessionToken = searchParams.get("sessionToken");
 

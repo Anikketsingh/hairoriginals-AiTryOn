@@ -11,12 +11,16 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { resolveSessionStatus } from "@/lib/funnel";
 import { setDeviceCookie } from "@/lib/device-cookie";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 export async function GET(
-  _req: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const { token } = await params;
 
     if (!token) {

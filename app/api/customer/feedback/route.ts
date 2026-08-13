@@ -16,6 +16,7 @@ import { getSessionByToken } from "@/lib/funnel";
 import { ensureLeadForSession } from "@/lib/leads";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { parseJsonBody } from "@/lib/validate";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 const feedbackBodySchema = z.object({
   sessionToken: z.string().min(1, "Missing sessionToken."),
@@ -33,6 +34,9 @@ function ownerFilter(sessionId: string, userId: string | null): string {
 
 export async function GET(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const { searchParams } = new URL(request.url);
     const sessionToken = searchParams.get("sessionToken");
 
@@ -62,6 +66,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const parsed = await parseJsonBody(request, feedbackBodySchema);
     if (parsed.error) return parsed.error;
     const { sessionToken, rating, improvement, interest, generationId, productId } = parsed.data;

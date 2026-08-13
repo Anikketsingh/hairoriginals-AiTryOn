@@ -9,9 +9,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { toPublicStorageUrl } from "@/lib/supabase/public-url";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 export async function GET(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get("category_id");
 

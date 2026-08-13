@@ -22,6 +22,7 @@ import { recordAnalyticsEvent } from "@/lib/analytics";
 import { ensureLeadForSession } from "@/lib/leads";
 import { sendCapiEvent } from "@/lib/meta-capi";
 import { parseJsonBody } from "@/lib/validate";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 const bodySchema = z.object({
   sessionToken: z.string().min(1).optional(),
@@ -31,6 +32,9 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     // 1. Extract the Supabase access token from Authorization header
     const authHeader = request.headers.get("authorization");
     const accessToken = authHeader?.replace(/^Bearer\s+/i, "").trim();

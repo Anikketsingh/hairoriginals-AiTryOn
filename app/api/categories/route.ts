@@ -6,9 +6,13 @@
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { maintenanceGuard } from "@/lib/maintenance";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const { data: categories, error } = await supabaseAdmin
       .from("categories")
       .select("id, name, slug, description, display_order")

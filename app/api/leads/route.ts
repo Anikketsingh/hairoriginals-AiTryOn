@@ -16,6 +16,7 @@ import { getSessionByToken, getFunnelStage } from "@/lib/funnel";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import { parseJsonBody } from "@/lib/validate";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 const bodySchema = z.object({
   sessionToken: z.string().min(1, "Missing sessionToken."),
@@ -24,6 +25,9 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const parsed = await parseJsonBody(request, bodySchema);
     if (parsed.error) return parsed.error;
     const { sessionToken, source } = parsed.data;

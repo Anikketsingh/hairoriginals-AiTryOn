@@ -16,6 +16,7 @@ import { getGuestFreeGenerations } from "@/lib/settings";
 import { getClientIp, checkSessionRateLimit } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { getDeviceCookie, setDeviceCookie } from "@/lib/device-cookie";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 // Body is optional in practice (a bare POST with no body is valid — the
 // fingerprint just won't be captured), so this is validated directly with
@@ -25,6 +26,9 @@ const bodySchema = z.object({ fingerprint: z.string().max(500).optional() });
 
 export async function POST(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const ipRaw = getClientIp(request);
 
     const allowed = await checkSessionRateLimit(ipRaw);

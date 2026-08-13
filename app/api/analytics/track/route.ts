@@ -9,6 +9,7 @@ import { z } from "zod";
 import { getSessionByToken } from "@/lib/funnel";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { parseJsonBody } from "@/lib/validate";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 const bodySchema = z.object({
   eventName: z.string().min(1, "Missing eventName."),
@@ -18,6 +19,9 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const parsed = await parseJsonBody(request, bodySchema);
     if (parsed.error) return parsed.error;
     const { eventName, properties, sessionToken } = parsed.data;

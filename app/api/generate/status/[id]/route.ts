@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSessionByToken, releaseCredit } from "@/lib/funnel";
 import { toPublicStorageUrl } from "@/lib/supabase/public-url";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 // Self-healing insurance independent of the job runner: if a row has sat in
 // pending/processing longer than this, something killed the job without
@@ -28,6 +29,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const { id } = await params;
     const sessionToken = request.nextUrl.searchParams.get("sessionToken");
 

@@ -17,11 +17,15 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getSessionByToken } from "@/lib/funnel";
 import { parseJsonBody } from "@/lib/validate";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 const bodySchema = z.object({ sessionToken: z.string().min(1) });
 
 export async function POST(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const parsed = await parseJsonBody(request, bodySchema);
     if (parsed.error) return parsed.error;
     const { sessionToken } = parsed.data;

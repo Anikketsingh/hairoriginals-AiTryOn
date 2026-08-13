@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { enqueueGenerationJob } from "@/lib/jobs/runner";
 import { getClientIp, checkGenerateRateLimit } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 // Shape-only check — real enforcement (is this id actually attached to this
 // product? is it active?) happens in the background job via
@@ -28,6 +29,9 @@ export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const formData = await request.formData();
 
     // ── Extract inputs ──────────────────────────────────────────

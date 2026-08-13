@@ -14,11 +14,15 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { toPublicStorageUrl } from "@/lib/supabase/public-url";
 import { isCustomizationEnabled } from "@/lib/settings";
 import type { CustomizationAttribute, ProductCustomizationResponse } from "@/lib/types";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 const EMPTY_RESPONSE: ProductCustomizationResponse = { attributes: [] };
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const closed = await maintenanceGuard(request);
+    if (closed) return closed;
+
     const { id } = await ctx.params;
 
     const globallyEnabled = await isCustomizationEnabled();

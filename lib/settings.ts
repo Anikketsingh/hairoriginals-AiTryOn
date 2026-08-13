@@ -42,7 +42,12 @@ export type SettingKey =
   | "guest_gate_mode"
   | "agent_credits_default_expiry"
   | "content_manager_can_see_costs"
-  | "customization_enabled";
+  | "customization_enabled"
+  // Read and written through lib/maintenance.ts rather than the helpers below:
+  // the switch needs a far shorter cache TTL than this module's 60s, and its
+  // writes require MAINTENANCE_PASSWORD on top of a super_admin session.
+  | "maintenance_mode"
+  | "maintenance_message";
 
 // ────────────────────────────────────────────────────────────────
 // Cache
