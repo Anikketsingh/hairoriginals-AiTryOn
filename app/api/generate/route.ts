@@ -11,6 +11,7 @@ import { enqueueGenerationJob } from "@/lib/jobs/runner";
 import { getClientIp, checkGenerateRateLimit } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { maintenanceGuard } from "@/lib/maintenance";
+import { readAttributionCookie } from "@/lib/attribution";
 
 // Shape-only check — real enforcement (is this id actually attached to this
 // product? is it active?) happens in the background job via
@@ -213,6 +214,9 @@ export async function POST(request: NextRequest) {
       productBase64,
       productType: productImage.type,
       customizationOptionIds,
+      // Read here, not in the job: the job runs after this response is sent and
+      // has no request of its own to pull the cookie off.
+      attribution: readAttributionCookie(request),
       demo,
     });
 

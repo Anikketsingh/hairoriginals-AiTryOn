@@ -23,6 +23,7 @@ import { ensureLeadForSession } from "@/lib/leads";
 import { sendCapiEvent } from "@/lib/meta-capi";
 import { parseJsonBody } from "@/lib/validate";
 import { maintenanceGuard } from "@/lib/maintenance";
+import { readAttributionCookie } from "@/lib/attribution";
 
 const bodySchema = z.object({
   sessionToken: z.string().min(1).optional(),
@@ -125,7 +126,13 @@ export async function POST(request: NextRequest) {
     // 5b. Auto-register the user as a CRM lead the moment they sign in, and
     //     dispatch lead.created to the DC CRM so an agent is routed to them.
     //     Idempotent — a returning user with an existing lead is a no-op.
-    await ensureLeadForSession({ sessionId, userId, source: "registration", funnelStage: 2 });
+    await ensureLeadForSession({
+      sessionId,
+      userId,
+      source: "registration",
+      funnelStage: 2,
+      attribution: readAttributionCookie(request),
+    });
 
     // 5c. Meta Conversions API: server-side twin of the browser 'Schedule' pixel
     //     event fired on OTP verification, deduped via the shared eventId. Sent

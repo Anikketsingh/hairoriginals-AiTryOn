@@ -17,6 +17,7 @@ import { ensureLeadForSession } from "@/lib/leads";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { parseJsonBody } from "@/lib/validate";
 import { maintenanceGuard } from "@/lib/maintenance";
+import { readAttributionCookie } from "@/lib/attribution";
 
 const feedbackBodySchema = z.object({
   sessionToken: z.string().min(1, "Missing sessionToken."),
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
       userId: session.user_id,
       source: "registration",
       funnelStage: 2,
+      attribution: readAttributionCookie(request),
     });
 
     const { data: feedback, error } = await supabaseAdmin

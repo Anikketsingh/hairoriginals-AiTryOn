@@ -33,8 +33,9 @@ We only post once a **phone or email** exists (Digicuro's dedup keys). Digicuro 
 
 ## 4. Body
 
-Top-level: `event`, `source`, `name?`, `phone?`, `email?`, `note?`. **All app-specific detail goes
-inside `metadata`** (Digicuro stores it verbatim on the touchpoint; images render from there).
+Top-level: `event`, `source`, `name?`, `phone?`, `email?`, `note?`, plus the marketing-attribution
+fields in §4a. **All app-specific detail goes inside `metadata`** (Digicuro stores it verbatim on the
+touchpoint; images render from there).
 
 ```json
 {
@@ -44,7 +45,37 @@ inside `metadata`** (Digicuro stores it verbatim on the touchpoint; images rende
   "phone": "+919876543210",
   "email": "aish@example.com",
   "note": "3 try-on(s), latest: Silk Base Topper",
+
+  "campaign": "HO-HT-Female-Kolkata-WLP-static",
+  "utm_source": "HO-HT-Female-Kolkata-WLP-static",
+  "utm_medium": "Facebook_Mobile_Feed",
+  "utm_campaign": "HO-HT-Female-Kolkata-WLP-static",
+  "landing_url": "https://aitryon.hairoriginals.com/?utm_source=…",
+  "referrer": "https://l.facebook.com/",
+  "utm_content": "HO-HT-Female-Kolkata-WLP-static",
+  "utm_term": "120248613941970339",
+  "campaign_id": "120248613941980339",
+  "ad_id": "120256558077390339",
+  "meta_click_id": "IwcGRvZgNleHRuA2FlbQEw…",
+  "fbclid": "IwcGRvZgNleHRuA2FlbQEw…",
+
   "metadata": {
+    "marketing": {
+      "utm_source": "HO-HT-Female-Kolkata-WLP-static",
+      "utm_medium": "Facebook_Mobile_Feed",
+      "utm_campaign": "HO-HT-Female-Kolkata-WLP-static",
+      "utm_content": "HO-HT-Female-Kolkata-WLP-static",
+      "utm_term": "120248613941970339",
+      "campaign_id": "120248613941980339",
+      "ad_id": "120256558077390339",
+      "fbclid": "IwcGRvZgNleHRuA2FlbQEw…"
+    },
+    "landing": {
+      "url": "https://aitryon.hairoriginals.com/?utm_source=…",
+      "path": "/",
+      "referrer": "https://l.facebook.com/",
+      "landedAt": "2026-08-14T10:12:04.000Z"
+    },
     "appLeadId": "6b1e2c9a-1f4d-4c7e-9b0a-77e1d3a2c8f5",
     "userId": "a2c9f0d1-8e3b-4a12-9c77-1b2d3e4f5a6b",
     "sessionId": "d9f3b7e0-2c14-4a8d-9f6e-0a1b2c3d4e5f",
@@ -70,6 +101,50 @@ inside `metadata`** (Digicuro stores it verbatim on the touchpoint; images rende
 nullable field may be absent (e.g. a look before original-photo capture); a later `lead.updated`
 fills it in.
 
+## 4a. Marketing attribution (added 2026-08-14)
+
+**First-touch**: the campaign that first brought the visitor to the app, captured off the landing
+URL's query string on their very first page view and held in a 90-day first-party cookie
+(`ho_attr`) until a lead exists. See `lib/attribution.ts`. One exception to "first": if the stored
+touch carries no campaign data (direct/organic) and the visitor later clicks an ad, the ad wins —
+otherwise anyone who once browsed organically would be credited "direct" forever.
+
+Two rules govern how these serialize:
+
+1. **Absent values are omitted, never sent as `null`.** We keep no copy of the attribution, so it
+   arrives on a request cookie — and `lead.updated` fires on every completed try-on, sometimes from a
+   request where the cookie is gone. A `null` would blank the campaign Digicuro already stored
+   against the lead; an omitted key leaves it untouched.
+2. **`metadata.marketing` always mirrors the full set** (ungated). Digicuro stores `metadata`
+   verbatim, so the data survives even if a top-level key name turns out to be wrong.
+
+| Field | Source param | Status |
+|---|---|---|
+| `utm_source` / `utm_medium` / `utm_campaign` | same-named query params | documented in their vendor spec |
+| `campaign` | mirror of `utm_campaign` (same value in our Meta URL template) | documented |
+| `landing_url` | full landing URL incl. query, hash stripped | documented |
+| `referrer` | `document.referrer` at landing | documented |
+| `utm_content` / `utm_term` | same-named query params | **inferred** — rendered by their UI, absent from their field table |
+| `campaign_id` / `ad_id` | `{{campaign.id}}` / `{{ad.id}}` from the Meta URL template | **inferred** |
+| `meta_click_id` + `fbclid` | `fbclid` — sent under both names, whichever they read | **inferred** |
+
+**Probed against the live endpoint, 2026-08-14** (lead 38292): unknown top-level keys are accepted
+and silently ignored — even a deliberately nonsense key returns `201`. So the inferred six cannot
+dead-letter a lead, but a `201` is equally *no proof they were stored*. Whether they populate the
+CRM's Marketing Parameters panel has to be confirmed by eye in the CRM UI; see
+`docs/digicuro-followup-requests.md` §3.
+
+They stay behind `CRM_SEND_EXTENDED_MARKETING` (default on) as cheap insurance should Digicuro
+tighten validation later — a non-429 4xx is terminal in `lib/webhooks/delivery.ts`, so set the flag
+to `false` in Vercel to drop them without a redeploy.
+
+`metadata.marketing` additionally carries `adset_id`, `gclid`, `ttclid`, and `msclkid` when present,
+so the same pipeline covers Google/TikTok/Bing without a code change. `metadata.landing` carries
+`url`, `path`, `referrer` (e.g. `https://l.facebook.com/`, absent on a direct hit) and `landedAt`.
+
+Not sent: `lead_type` (their example value `home_trial` implies a validated enum — we'd be guessing)
+and `city` / `pin_code` (we don't collect either; only country, via the Vercel geo header).
+
 ## 5. Field reference
 
 **Top level (Digicuro reads these):**
@@ -82,12 +157,14 @@ fills it in.
 | `phone` | dedup key; E.164 |
 | `email` | dedup key; at least one of phone/email is always present |
 | `note` | short summary shown on the lead timeline (≤2000 chars) |
+| marketing fields | see §4a — omitted entirely when the visitor has no attribution |
 | `metadata` | object, stored verbatim (below) |
 
 **`metadata` (stored as-is; images display from here):** `appLeadId` (our `leads.id` — stable
 reconciliation key), `userId`, `sessionId`, `occurredAt`, `source` (internal enum: `registration` /
 `guest_tryon` / `agent_gate` / …), `generationsCount`, `products[]` `{id,name,price}`,
-`generatedLookUrl`, `originalPhotoUrl`, `looks[]` `{resultUrl, originalPhotoUrl, productName, createdAt}`.
+`generatedLookUrl`, `originalPhotoUrl`, `looks[]` `{resultUrl, originalPhotoUrl, productName, createdAt}`,
+`marketing` + `landing` (§4a).
 
 ## 6. Response
 

@@ -54,11 +54,18 @@ export default function HomePage() {
   const [gateMessage, setGateMessage] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
-  // Sync step → URL hash so the hardware Back button works.
+  // Sync step → URL hash so the hardware Back button works. Returning to the
+  // home step has no hash, so the URL is rebuilt by hand — and must keep the
+  // query string, or an ad click's ?utm_*/&fbclid params are wiped the first
+  // time the customer steps back (see components/AttributionCapture.tsx).
   useEffect(() => {
     const target = STEP_TO_HASH[step];
     if (window.location.hash !== target) {
-      window.history.pushState(null, "", target || window.location.pathname);
+      window.history.pushState(
+        null,
+        "",
+        target || `${window.location.pathname}${window.location.search}`
+      );
     }
   }, [step]);
 

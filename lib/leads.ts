@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { getAppBaseUrl } from "@/lib/app-url";
+import type { Attribution } from "@/lib/attribution";
 
 /** Cap on how many recent looks we attach to a payload. */
 const CRM_MAX_LOOKS = 5;
@@ -187,8 +188,13 @@ export async function ensureLeadForSession(params: {
   userId: string | null;
   source: LeadSource;
   funnelStage: number;
+  /**
+   * First-touch marketing attribution off the caller's request cookie. Passed
+   * straight through to the CRM — we don't persist it (see lib/attribution.ts).
+   */
+  attribution?: Attribution | null;
 }): Promise<{ leadId: string | null; created: boolean }> {
-  const { sessionId, userId, source, funnelStage } = params;
+  const { sessionId, userId, source, funnelStage, attribution } = params;
   if (!sessionId && !userId) return { leadId: null, created: false };
 
   try {
@@ -226,6 +232,7 @@ export async function ensureLeadForSession(params: {
             name: contact.name,
             email: contact.email,
             source,
+            attribution: attribution ?? null,
             generatedLookUrl: media.generatedLookUrl,
             originalPhotoUrl: media.originalPhotoUrl,
             looks: media.looks,
@@ -277,6 +284,7 @@ export async function ensureLeadForSession(params: {
         name: contact.name,
         email: contact.email,
         source,
+        attribution: attribution ?? null,
         funnelStage,
         generationsCount,
         products,
@@ -301,7 +309,11 @@ export async function ensureLeadForSession(params: {
  * tried) and dispatch `lead.updated` so the CRM master sees engagement in near
  * real time. No-op if the owner has no lead yet (e.g. a guest pre-signup).
  */
-export async function refreshLeadActivity({ sessionId, userId }: OwnerRef): Promise<void> {
+export async function refreshLeadActivity({
+  sessionId,
+  userId,
+  attribution,
+}: OwnerRef & { attribution?: Attribution | null }): Promise<void> {
   if (!sessionId && !userId) return;
   try {
     const { data: lead } = await supabaseAdmin
@@ -347,6 +359,7 @@ export async function refreshLeadActivity({ sessionId, userId }: OwnerRef): Prom
         phone: contact.phone,
         name: contact.name,
         email: contact.email,
+        attribution: attribution ?? null,
         generationsCount,
         products,
         generatedLookUrl: media.generatedLookUrl,

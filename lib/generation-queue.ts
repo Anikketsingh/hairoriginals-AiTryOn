@@ -23,6 +23,7 @@ import { touchSession, releaseCredit } from "@/lib/funnel";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import { ensureLeadForSession, refreshLeadActivity } from "@/lib/leads";
+import type { Attribution } from "@/lib/attribution";
 
 export interface ProcessJobParams {
   generationId: string;
@@ -38,6 +39,14 @@ export interface ProcessJobParams {
    * inactive, or belongs to another product is silently dropped.
    */
   customizationOptionIds?: string[];
+  /**
+   * First-touch marketing attribution, read off the /api/generate request
+   * cookie and carried in here because this job runs after the response is
+   * sent and so has no request of its own. This is the highest-volume lead
+   * path — a guest becomes a lead on their first completed try-on — so without
+   * it most leads would reach the CRM unattributed. See lib/attribution.ts.
+   */
+  attribution?: Attribution | null;
   /**
    * Dev-only flag (see the demo button in app/(customer)/page.tsx). When set
    * AND the process is not running in production, the Gemini call is skipped
@@ -208,6 +217,7 @@ export async function processGenerationAsync({
   productBase64,
   productType,
   customizationOptionIds,
+  attribution,
   demo,
 }: ProcessJobParams): Promise<void> {
   const startTime = Date.now();
@@ -369,8 +379,9 @@ export async function processGenerationAsync({
       userId,
       source: userId ? "registration" : "guest_tryon",
       funnelStage: userId ? 2 : 0,
+      attribution,
     });
-    await refreshLeadActivity({ sessionId, userId });
+    await refreshLeadActivity({ sessionId, userId, attribution });
   } catch (err: unknown) {
     const errorMessage =
       err instanceof Error ? err.message : "Background processing failed.";

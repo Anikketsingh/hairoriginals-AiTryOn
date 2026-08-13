@@ -17,6 +17,7 @@ import { recordAnalyticsEvent } from "@/lib/analytics";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import { parseJsonBody } from "@/lib/validate";
 import { maintenanceGuard } from "@/lib/maintenance";
+import { readAttributionCookie } from "@/lib/attribution";
 
 const bodySchema = z.object({
   sessionToken: z.string().min(1, "Missing sessionToken."),
@@ -97,7 +98,15 @@ export async function POST(request: NextRequest) {
 
     await dispatchIntegrationEvent(
       "lead.created",
-      { leadId: lead.id, userId: session.user_id, sessionId: session.id, phone, source, generationsCount: genCount ?? 0 },
+      {
+        leadId: lead.id,
+        userId: session.user_id,
+        sessionId: session.id,
+        phone,
+        source,
+        attribution: readAttributionCookie(request),
+        generationsCount: genCount ?? 0,
+      },
       "crm"
     );
     await recordAnalyticsEvent("lead_created", { source }, session.id, session.user_id);

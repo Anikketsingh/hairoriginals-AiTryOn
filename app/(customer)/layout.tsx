@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { ToastProvider } from "@/components/ui/Toast";
 import { GeoProvider } from "@/components/GeoProvider";
+import AttributionCapture from "@/components/AttributionCapture";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import {
   MAINTENANCE_BYPASS_COOKIE,
@@ -33,6 +34,9 @@ export default async function CustomerLayout({
 
   return (
     <GeoProvider country={country}>
+      {/* Records the landing URL's marketing params before the funnel rewrites
+          it — see components/AttributionCapture.tsx. */}
+      <AttributionCapture />
       <ToastProvider>{children}</ToastProvider>
     </GeoProvider>
   );
