@@ -46,7 +46,7 @@ touchpoint; images render from there).
   "email": "aish@example.com",
   "note": "3 try-on(s), latest: Silk Base Topper",
 
-  "campaign": "HO-HT-Female-Kolkata-WLP-static",
+  "campaign": "HairOriginals AI Try-On",
   "utm_source": "HO-HT-Female-Kolkata-WLP-static",
   "utm_medium": "Facebook_Mobile_Feed",
   "utm_campaign": "HO-HT-Female-Kolkata-WLP-static",
@@ -109,6 +109,22 @@ URL's query string on their very first page view and held in a 90-day first-part
 touch carries no campaign data (direct/organic) and the visitor later clicks an ad, the ad wins —
 otherwise anyone who once browsed organically would be credited "direct" forever.
 
+### `campaign` is the CRM's categorisation key — not the ad's campaign name
+
+Digicuro categorises a lead on the top-level **`campaign`** field. Established by A/B probe on
+2026-08-14: leads 38310 and 38311 were byte-identical except that `campaign` and `utm_campaign` were
+swapped; **38310**, which carried `"HairOriginals AI Try-On"` in `campaign`, came through tagged
+`HairOriginals AI Try-On`, while 38311 did not. `source`, `utm_source` and `utm_campaign` were each
+ruled out by the same method (leads 38294, 38296–38309) — every one of them defaulted to
+"Vendors (Other)".
+
+So `campaign` is pinned to the constant, and it is set on the body itself rather than inside
+`applyAttribution` — a direct or organic visitor has no marketing params at all, and must still be
+categorised correctly. **The ad's real campaign name is not lost**: it is in `utm_campaign` (and
+`metadata.marketing.utm_campaign`), and the specific ad remains identified by `campaign_id` / `ad_id`.
+
+This supersedes the request in `docs/digicuro-followup-requests.md` §1 — no CRM-side change is needed.
+
 Two rules govern how these serialize:
 
 1. **Absent values are omitted, never sent as `null`.** We keep no copy of the attribution, so it
@@ -121,7 +137,7 @@ Two rules govern how these serialize:
 | Field | Source param | Status |
 |---|---|---|
 | `utm_source` / `utm_medium` / `utm_campaign` | same-named query params | documented in their vendor spec |
-| `campaign` | mirror of `utm_campaign` (same value in our Meta URL template) | documented |
+| `campaign` | **constant `"HairOriginals AI Try-On"`** — see below | documented |
 | `landing_url` | full landing URL incl. query, hash stripped | documented |
 | `referrer` | `document.referrer` at landing | documented |
 | `utm_content` / `utm_term` | same-named query params | **inferred** — rendered by their UI, absent from their field table |

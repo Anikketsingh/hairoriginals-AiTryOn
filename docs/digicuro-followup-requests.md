@@ -15,6 +15,13 @@ third is a confirmation request about fields we've just started sending (details
 
 ## 1. Show the source as "HairOriginals AI Try-On" (not "Vendor / Other")
 
+> **RESOLVED 14 Aug 2026 — no action needed from Digicuro.** We found the mechanism by A/B probe:
+> the CRM categorises on the top-level **`campaign`** field, not `source`. Leads 38310 / 38311 were
+> identical except for a swapped `campaign` / `utm_campaign`; the one carrying
+> `"HairOriginals AI Try-On"` in `campaign` was tagged correctly. We now send that constant in
+> `campaign` on every lead, and the ad's real campaign name moved to `utm_campaign`. The original
+> request is kept below for context.
+
 **What we see now:** leads from our app are categorized as **Vendor (Other) / Partner** in the CRM.
 
 **What we want:** they should show under a distinct source **"HairOriginals AI Try-On"**, so your

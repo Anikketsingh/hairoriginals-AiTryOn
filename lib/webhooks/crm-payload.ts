@@ -15,7 +15,21 @@
 
 import { PARAM_KEYS, type Attribution } from "@/lib/attribution";
 
-/** Sent as the touchpoint's source attribution (their `source` field). */
+/**
+ * Sent as BOTH the touchpoint's `source` and its `campaign`.
+ *
+ * `campaign` is the one that matters: A/B probes against the live CRM on
+ * 2026-08-14 (leads 38310 / 38311, identical but for a swapped
+ * `campaign`/`utm_campaign`) showed **`campaign` is what Digicuro categorises
+ * the lead on** — 38310 carried this string in `campaign` and came through
+ * tagged "HairOriginals AI Try-On", while every earlier lead landed in the
+ * default "Vendors (Other)". `source`, `utm_source` and `utm_campaign` were
+ * each ruled out the same way (leads 38294 / 38296-38309).
+ *
+ * So this cannot carry the ad's campaign name — the real one lives in
+ * `utm_campaign` (plus `metadata.marketing.utm_campaign`), and the ad is still
+ * identified precisely by `campaign_id` / `ad_id`.
+ */
 const CRM_SOURCE = "HairOriginals AI Try-On";
 /** Their `note` free-text cap. */
 const NOTE_MAX = 2000;
@@ -64,7 +78,9 @@ export interface CrmLeadBody {
   note?: string;
 
   // ── marketing attribution (documented by Digicuro) ──
-  campaign?: string;
+  /** Always CRM_SOURCE — this is their lead-categorisation key, not the ad's
+   *  campaign name. The ad's name is in `utm_campaign`. */
+  campaign: string;
   utm_source?: string;
   utm_medium?: string;
   utm_campaign?: string;
@@ -151,12 +167,9 @@ function applyAttribution(body: CrmLeadBody, attribution: Attribution | null | u
   // Confirmed by Digicuro's documented request body.
   if (marketing.utm_source) body.utm_source = marketing.utm_source;
   if (marketing.utm_medium) body.utm_medium = marketing.utm_medium;
-  if (marketing.utm_campaign) {
-    body.utm_campaign = marketing.utm_campaign;
-    // Their `campaign` field is the human-readable campaign name, which for our
-    // Meta URL template is the same value as utm_campaign.
-    body.campaign = marketing.utm_campaign;
-  }
+  // NB: `campaign` is deliberately NOT set from utm_campaign — it's Digicuro's
+  // lead-categorisation key and is pinned to CRM_SOURCE in toCrmLeadBody().
+  if (marketing.utm_campaign) body.utm_campaign = marketing.utm_campaign;
   if (landing.url) body.landing_url = landing.url;
   if (landing.referrer) body.referrer = landing.referrer;
 
@@ -183,6 +196,10 @@ export function toCrmLeadBody(payload: Record<string, unknown>, eventType: strin
   const body: CrmLeadBody = {
     event: eventType,
     source: CRM_SOURCE,
+    // Set here rather than in applyAttribution so a direct/organic visitor —
+    // who has no marketing params at all — still lands under the right CRM
+    // category instead of the default "Vendors (Other)".
+    campaign: CRM_SOURCE,
     note: buildNote(payload),
     metadata: {
       appLeadId: (payload.leadId as string | null | undefined) ?? null,
