@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Search, Check, Loader2, Package, Upload, Sparkles, ArrowRight } from "lucide-react";
+import { Search, Check, Loader2, Package, Upload, Sparkles, ArrowRight, ScanFace } from "lucide-react";
 import Button from "@/components/ui/Button";
 import StickyActionBar from "@/components/ui/StickyActionBar";
 import Badge from "@/components/ui/Badge";
@@ -16,11 +16,23 @@ import { formatMoney } from "@/lib/format";
 interface StyleStepProps {
   productImage?: UploadedImage;
   sessionToken?: string | null;
+  /** False when there's no person photo to scan (e.g. a deep link to #style). */
+  canAiSuggest?: boolean;
+  aiBusy?: boolean;
+  onAiPick?: () => void;
   onSelect: (img: UploadedImage | undefined, product?: Product) => void;
   onTryOn: () => void;
 }
 
-export default function StyleStep({ productImage, sessionToken, onSelect, onTryOn }: StyleStepProps) {
+export default function StyleStep({
+  productImage,
+  sessionToken,
+  canAiSuggest = false,
+  aiBusy = false,
+  onAiPick,
+  onSelect,
+  onTryOn,
+}: StyleStepProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -156,6 +168,18 @@ export default function StyleStep({ productImage, sessionToken, onSelect, onTryO
           </Chip>
         ))}
       </div>
+
+      {/* AI Stylist — sits above the grid so it's the first thing a customer
+          who doesn't know what to pick sees, and scrolls away for one who does. */}
+      {canAiSuggest && onAiPick && (
+        <AiPickBanner
+          busy={aiBusy}
+          onClick={() => {
+            trackAnalyticsEvent("ai_suggest_opened", {}, sessionToken);
+            onAiPick();
+          }}
+        />
+      )}
 
       {/* Grid */}
       <div className="mt-4 flex-1">
@@ -294,6 +318,25 @@ export default function StyleStep({ productImage, sessionToken, onSelect, onTryO
           ))}
         </div>
       </Sheet>
+    </div>
+  );
+}
+
+function AiPickBanner({ busy, onClick }: { busy: boolean; onClick: () => void }) {
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-[var(--radius-lg)] border border-brand/25 bg-gradient-to-br from-grad-1/10 via-grad-2/10 to-grad-3/10 p-3.5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-grad-1 via-grad-2 to-grad-3 text-white shadow-[var(--shadow-brand)]">
+        <ScanFace className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-bold leading-tight text-ink">Not sure what suits you?</p>
+        <p className="mt-0.5 text-[12.5px] leading-snug text-ink-soft">
+          Let AI scan your photo and pick your best match.
+        </p>
+      </div>
+      <Button size="sm" loading={busy} onClick={onClick} className="shrink-0">
+        {busy ? "Scanning" : "Scan me"}
+      </Button>
     </div>
   );
 }

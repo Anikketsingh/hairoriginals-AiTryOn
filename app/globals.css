@@ -208,6 +208,41 @@ body {
   50%      { opacity: 1; transform: scale(1); }
 }
 
+/* ── AI Stylist face scan (AiScanOverlay) ────────────────── */
+@keyframes scan-sweep {
+  0%        { transform: translateY(-8%); opacity: 0; }
+  12%, 88%  { opacity: 1; }
+  100%      { transform: translateY(108%); opacity: 0; }
+}
+.animate-scan-sweep {
+  animation: scan-sweep 2.2s ease-in-out infinite;
+}
+
+@keyframes mesh-in {
+  from { opacity: 0; }
+  to   { opacity: 0.35; }
+}
+.animate-mesh-in {
+  opacity: 0.35;
+  animation: mesh-in 0.6s ease-out forwards;
+}
+
+/* A full-screen strobing sweep is the one animation in this app that can
+   actually make someone unwell. Hold it still and let the status copy — which
+   is what carries the information — do the work instead. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-scan-sweep {
+    animation: none;
+    /* Parked mid-frame. Uses transform rather than `top` because the element
+       also carries Tailwind's `top-0` at equal specificity. */
+    transform: translateY(150%);
+    opacity: 0.9;
+  }
+  .animate-mesh-in {
+    animation: none;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────
    Admin console — mobile ergonomics
    ───────────────────────────────────────────────────────────── */

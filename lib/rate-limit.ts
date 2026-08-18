@@ -1,10 +1,11 @@
 /**
  * lib/rate-limit.ts
  *
- * Rate limiting for the two unauthenticated-by-design endpoints that can
- * otherwise be hammered for free: POST /api/sessions (mints guest credits)
- * and POST /api/generate (burns AI spend per call). Backed by Upstash Redis
- * (REST-based — works from any runtime regardless of deployment target).
+ * Rate limiting for the unauthenticated-by-design endpoints that can otherwise
+ * be hammered for free: POST /api/sessions (mints guest credits), POST
+ * /api/generate (burns AI spend per call), and POST /api/suggest (burns AI
+ * spend and isn't even credit-gated). Backed by Upstash Redis (REST-based —
+ * works from any runtime regardless of deployment target).
  *
  * Failure behaviour, in order of preference:
  *
@@ -39,10 +40,15 @@ const failClosed = process.env.RATE_LIMIT_FAIL_CLOSED === "true";
 
 const SESSIONS_LIMIT = 10;
 const GENERATE_LIMIT = 20;
+// Tighter than generate: an AI Stylist scan costs real Gemini spend but, unlike
+// generate, consumes no credit — so the rate limit is the only thing standing
+// between a script and an unbounded bill.
+const SUGGEST_LIMIT = 6;
 const WINDOW_MS = 60_000;
 
 let sessionsLimiter: Ratelimit | null = null;
 let generateLimiter: Ratelimit | null = null;
+let suggestLimiter: Ratelimit | null = null;
 
 if (url && token) {
   const redis = new Redis({ url, token });
@@ -55,6 +61,11 @@ if (url && token) {
     redis,
     limiter: Ratelimit.slidingWindow(GENERATE_LIMIT, "1 m"),
     prefix: "rl:generate",
+  });
+  suggestLimiter = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(SUGGEST_LIMIT, "1 m"),
+    prefix: "rl:suggest",
   });
 } else {
   console.warn(
@@ -109,7 +120,12 @@ async function check(
   limit: number,
   label: string,
 ): Promise<boolean> {
-  if (!limiter) return checkInMemory(key, limit);
+  // Namespaced by label so the fallback mirrors the distinct Redis `prefix`
+  // each limiter uses. Without this the limiters share one bucket per key —
+  // and since sessions keys on IP while generate and suggest key on
+  // `sessionId ?? IP`, they collide on every guest and the effective limit
+  // becomes the smallest of the three.
+  if (!limiter) return checkInMemory(`${label}:${key}`, limit);
   try {
     const { success } = await limiter.limit(key);
     return success;
@@ -137,4 +153,9 @@ export async function checkSessionRateLimit(ip: string): Promise<boolean> {
 /** Per-session (or per-IP, before a session exists) limit on generation — 20/minute. */
 export async function checkGenerateRateLimit(key: string): Promise<boolean> {
   return check(generateLimiter, key, GENERATE_LIMIT, "generate");
+}
+
+/** Per-session (or per-IP) limit on AI Stylist face scans — 6/minute. */
+export async function checkSuggestRateLimit(key: string): Promise<boolean> {
+  return check(suggestLimiter, key, SUGGEST_LIMIT, "suggest");
 }

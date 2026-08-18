@@ -147,6 +147,49 @@ export function isGateResponse(result: GenerateApiResponse): result is GateRespo
 }
 
 // ──────────────────────────────────────────────────────────────
+// AI Stylist — face scan → ranked style shortlist (POST /api/suggest)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * What the vision model observed about the customer. Every field is free text
+ * written by the model and rendered verbatim, so treat each as optional — a
+ * blank one is simply not shown.
+ */
+export interface FaceAnalysis {
+  faceShape: string;
+  hairType: string;
+  skinTone: string;
+  summary: string;
+}
+
+export interface SuggestedMatch {
+  /** 1-based, best first. */
+  rank: number;
+  /** Model's own 0-100 confidence. Not displayed today; kept for analytics. */
+  matchScore: number;
+  /** One-sentence, second-person rationale shown under the product name. */
+  reason: string;
+  product: Product;
+}
+
+export interface SuggestResponse {
+  analysis: FaceAnalysis;
+  matches: SuggestedMatch[];
+}
+
+/** 200 response when the model couldn't find a face to work from. */
+export interface SuggestNoFaceResponse {
+  noFace: true;
+  message: string;
+}
+
+export type SuggestApiResponse = SuggestResponse | SuggestNoFaceResponse | GenerateError;
+
+export function isSuggestNoFace(result: SuggestApiResponse): result is SuggestNoFaceResponse {
+  return "noFace" in result;
+}
+
+// ──────────────────────────────────────────────────────────────
 // Funnel / session types (context.md §2)
 // ──────────────────────────────────────────────────────────────
 

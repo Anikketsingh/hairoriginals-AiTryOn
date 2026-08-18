@@ -23,6 +23,9 @@ import { touchSession, releaseCredit } from "@/lib/funnel";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { dispatchIntegrationEvent } from "@/lib/event-bus";
 import { ensureLeadForSession, refreshLeadActivity } from "@/lib/leads";
+import { withTimeout, isRetryableAiError } from "@/lib/ai-retry";
+// TEMPORARY instrumentation — see lib/debug-timing.ts
+import { createTimer } from "@/lib/debug-timing";
 import type { Attribution } from "@/lib/attribution";
 
 export interface ProcessJobParams {
@@ -60,35 +63,15 @@ export interface ProcessJobParams {
 // production build, no matter what the client sends.
 const DEMO_MODE_ALLOWED = process.env.NODE_ENV !== "production";
 
-// Heuristic match for transient failures worth retrying once (timeouts,
-// connection resets, 5xx, rate limiting) vs. permanent ones (bad input,
-// safety rejection) that should fail immediately.
-const RETRYABLE_ERROR_PATTERN = /timeout|ECONNRESET|fetch failed|50[0-9]|429/i;
 const RETRY_DELAY_MS = 1500;
 
 // generateTryOn has no request timeout of its own — a hung connection to
 // Gemini otherwise leaves the job's promise pending forever, past both the
 // try/catch below and the retry logic, relying entirely on the 3-minute
 // stale-job reconciliation in the status route as a last resort. Race
-// against a timeout here so a hang becomes an immediate, retryable error
-// instead. (Soft timeout: the underlying call isn't aborted, just ignored.)
+// against a timeout here (see lib/ai-retry.ts) so a hang becomes an immediate,
+// retryable error instead.
 const GEMINI_CALL_TIMEOUT_MS = 45_000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      }
-    );
-  });
-}
 
 async function generateWithRetry(
   personBase64: string,
@@ -108,9 +91,9 @@ async function generateWithRetry(
   try {
     return await attempt();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (!RETRYABLE_ERROR_PATTERN.test(message)) throw err;
+    if (!isRetryableAiError(err)) throw err;
 
+    const message = err instanceof Error ? err.message : String(err);
     console.warn("[generation-queue] Transient error, retrying once:", message);
     await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
     return await attempt();
@@ -221,6 +204,7 @@ export async function processGenerationAsync({
   demo,
 }: ProcessJobParams): Promise<void> {
   const startTime = Date.now();
+  const t = createTimer("generate:job"); // TEMPORARY — see lib/debug-timing.ts
   // Fetched up front (before anything that can throw) so the catch block
   // below can always refund it — credits are debited in /api/generate
   // before this job even starts, so a failure here must give the try-on
@@ -246,6 +230,7 @@ export async function processGenerationAsync({
     //     generation still retains it — that's the case an agent most wants
     //     to look at.
     await storeSourceImage(generationId, personBase64, personType);
+    t.mark("mark-processing+store-source");
 
     // 2. Resolve prompt: product override → category-matched prompt_templates
     //    row → seeded "default" template → hardcoded fallback in gemini.ts
@@ -292,6 +277,7 @@ export async function processGenerationAsync({
     // this is a no-op for every generation without customizations.
     const basePrompt = customPrompt ?? HAIR_TRYON_PROMPT;
     const finalPrompt = composeCustomizedPrompt(basePrompt, resolvedCustomizations);
+    t.mark("resolve-prompt+model+customizations");
 
     // 3. Call Gemini AI try-on API with resolved prompt + model (one retry
     //    on transient failure — see generateWithRetry above). In dev-only
@@ -317,6 +303,7 @@ export async function processGenerationAsync({
       );
     }
 
+    t.mark(`gemini-image(${model})`);
     const duration = Date.now() - startTime;
 
     // 4. Store the result in Storage (not Postgres — see the migration
@@ -341,6 +328,8 @@ export async function processGenerationAsync({
         completed_at: new Date().toISOString(),
       })
       .eq("id", generationId);
+
+    t.mark("upload-result+mark-completed");
 
     // 5. Touch session last_seen if session exists. Was previously an
     //    inline `.update({ last_seen_at: ... })` against a column that
@@ -382,6 +371,8 @@ export async function processGenerationAsync({
       attribution,
     });
     await refreshLeadActivity({ sessionId, userId, attribution });
+    t.mark("analytics+webhooks+lead");
+    t.log();
   } catch (err: unknown) {
     const errorMessage =
       err instanceof Error ? err.message : "Background processing failed.";
