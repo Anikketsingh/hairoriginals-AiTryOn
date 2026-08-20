@@ -207,6 +207,55 @@ export interface SessionStatus {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Home trial offer (GET /api/home-trial)
+// ──────────────────────────────────────────────────────────────
+
+// Re-exported so lib/home-trial.ts can take its whole surface from one module.
+export type { Attribution } from "@/lib/attribution";
+
+export type HomeTrialAudience = "all" | "women" | "men";
+
+/**
+ * The result-screen home trial offer, as served to the browser.
+ *
+ * Both creatives are sent and the client picks by catalogue gender, rather
+ * than the server resolving one: the config is fetched as soon as the
+ * customer starts the flow, but gender isn't chosen until the style step, so
+ * a server-resolved image would race the choice and could ship the wrong
+ * artwork. `imageMen` has already fallen back to `imageWomen` if unset.
+ */
+export interface HomeTrialConfig {
+  enabled: boolean;
+  popupEnabled: boolean;
+  url: string;
+  imageWomen: string;
+  imageMen: string;
+  ctaLabel: string;
+  subtext: string;
+  /** Short pill above the CTA on the inline card. Empty hides it. */
+  badge: string;
+  audience: HomeTrialAudience;
+  minTryons: number;
+  delayMs: number;
+  /** Cap the popup at one impression per browser session. */
+  oncePerSession: boolean;
+  /** Stop showing the popup once she has tapped through to book. */
+  stopAfterBooking: boolean;
+}
+
+/** A HomeTrialConfig resolved against one customer — null when they aren't in the audience. */
+export interface HomeTrialOffer {
+  url: string;
+  imageUrl: string;
+  ctaLabel: string;
+  subtext: string;
+  badge: string;
+}
+
+/** Where a home trial click came from. Recorded as `utm_medium` and on the analytics event. */
+export type HomeTrialSource = "result_popup" | "result_card";
+
+// ──────────────────────────────────────────────────────────────
 // Validation constants
 // ──────────────────────────────────────────────────────────────
 

@@ -13,8 +13,10 @@ import AiScanOverlay from "@/components/flow/AiScanOverlay";
 import AiPickSheet from "@/components/flow/AiPickSheet";
 import FunnelGate from "@/components/FunnelGate";
 import FeedbackSheet from "@/components/FeedbackSheet";
+import HomeTrialSheet from "@/components/HomeTrialSheet";
 import { useToast } from "@/components/ui/Toast";
 import { useSession } from "@/hooks/useSession";
+import { useHomeTrial } from "@/hooks/useHomeTrial";
 import { urlToUploadedImage, downscaleImage } from "@/lib/image";
 // TEMPORARY instrumentation — see lib/debug-timing.ts
 import { createTimer } from "@/lib/debug-timing";
@@ -64,6 +66,11 @@ export default function HomePage() {
   const [gateStage, setGateStage] = useState<1 | 3 | null>(null);
   const [gateMessage, setGateMessage] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+
+  // Home trial offer. Loaded from the photo step onwards so it's ready by the
+  // time a result lands, but never fetched for a visitor who bounces off home.
+  const homeTrial = useHomeTrial(step !== "home", sessionToken);
+  const { armPopup: armHomeTrialPopup, cancelPopup: cancelHomeTrialPopup } = homeTrial;
 
   // AI Stylist (see components/flow/AiScanOverlay + AiPickSheet). The scan
   // itself costs no credit — it only pre-fills the selection the customer
@@ -183,6 +190,23 @@ export default function HomePage() {
     }
   }, [sessionToken, sessionStatus?.userId]);
 
+  // Both post-result prompts want the same moment, so they're ordered here
+  // rather than racing: the home trial popup goes first (it's the conversion
+  // ask), and the feedback form only runs when the popup isn't going to open.
+  // When it does open, FeedbackSheet is triggered from its dismiss instead —
+  // and skipped entirely if she taps through, since interrupting someone who
+  // just converted to ask how the try-on went is the wrong order of business.
+  const handleResultLanded = useCallback(async () => {
+    const popupScheduled = await armHomeTrialPopup();
+    if (!popupScheduled) void maybePromptFeedback();
+  }, [armHomeTrialPopup, maybePromptFeedback]);
+
+  // A scheduled popup belongs to the result screen. Drop it if she moves on
+  // before it fires, or if the funnel gate claims the screen first.
+  useEffect(() => {
+    if (step !== "result" || gateStage !== null) cancelHomeTrialPopup();
+  }, [step, gateStage, cancelHomeTrialPopup]);
+
   // `demo: true` skips the paid Gemini call (dev only — see the demo button
   // below). `productOverride` lets a caller that just resolved a product image
   // generate with it immediately, without waiting a render for setProductImage
@@ -248,13 +272,13 @@ export default function HomePage() {
         t.log();
         if (cancelledRef.current) return;
         setStep("result");
-        void maybePromptFeedback();
+        void handleResultLanded();
       } else {
         t.log();
         setResult(data as GenerateResponse);
         setStep("result");
         await refreshStatus();
-        void maybePromptFeedback();
+        void handleResultLanded();
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
@@ -262,7 +286,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [personImage, productImage, sessionToken, customizationSelections, refreshStatus, pollJobStatus, toast, maybePromptFeedback]);
+  }, [personImage, productImage, sessionToken, customizationSelections, refreshStatus, pollJobStatus, toast, handleResultLanded]);
 
   // Returns the resolved attributes as well as storing them. A caller that
   // needs to branch on them immediately (handleAiPick) can't read the state it
@@ -524,6 +548,8 @@ export default function HomePage() {
             product={selectedProduct}
             generationId={generationId}
             sessionToken={sessionToken}
+            homeTrial={homeTrial.offer}
+            onBookHomeTrial={() => homeTrial.openOffer("result_card", selectedProduct?.id)}
             onTryAnother={handleTryAnother}
             onStartOver={handleStartOver}
           />
@@ -579,6 +605,18 @@ export default function HomePage() {
         busyProductId={pickingProductId}
         onPick={handleAiPick}
         onClose={() => setSuggestOpen(false)}
+      />
+
+      {/* Home trial offer — opens before the feedback prompt, which is handed
+          the screen only when this one is dismissed rather than converted. */}
+      <HomeTrialSheet
+        open={homeTrial.popupOpen}
+        offer={homeTrial.offer}
+        onClose={() => {
+          homeTrial.dismissPopup();
+          void maybePromptFeedback();
+        }}
+        onBook={() => homeTrial.openOffer("result_popup", selectedProduct?.id)}
       />
 
       {/* Post-trial feedback */}

@@ -18,6 +18,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { DEFAULT_GEMINI_MODEL } from "@/lib/gemini-models";
+import type { HomeTrialAudience, HomeTrialConfig } from "@/lib/types";
 
 // ────────────────────────────────────────────────────────────────
 // Types
@@ -43,6 +44,20 @@ export type SettingKey =
   | "agent_credits_default_expiry"
   | "content_manager_can_see_costs"
   | "customization_enabled"
+  // Result-screen home trial offer — see getHomeTrialConfig() below.
+  | "home_trial_enabled"
+  | "home_trial_popup_enabled"
+  | "home_trial_url"
+  | "home_trial_image_women"
+  | "home_trial_image_men"
+  | "home_trial_cta_label"
+  | "home_trial_subtext"
+  | "home_trial_badge"
+  | "home_trial_audience"
+  | "home_trial_min_tryons"
+  | "home_trial_delay_ms"
+  | "home_trial_once_per_session"
+  | "home_trial_stop_after_booking"
   // Read and written through lib/maintenance.ts rather than the helpers below:
   // the switch needs a far shorter cache TTL than this module's 60s, and its
   // writes require MAINTENANCE_PASSWORD on top of a super_admin session.
@@ -192,4 +207,90 @@ export async function getMaxUploadSizeMb(): Promise<number> {
 /** Fleet-wide kill switch for Hair Colour / Hair Length customization. */
 export async function isCustomizationEnabled(): Promise<boolean> {
   return (await getSetting("customization_enabled") as boolean) ?? true;
+}
+
+// ────────────────────────────────────────────────────────────────
+// Home trial offer
+// ────────────────────────────────────────────────────────────────
+
+const HOME_TRIAL_KEYS: SettingKey[] = [
+  "home_trial_enabled",
+  "home_trial_popup_enabled",
+  "home_trial_url",
+  "home_trial_image_women",
+  "home_trial_image_men",
+  "home_trial_cta_label",
+  "home_trial_subtext",
+  "home_trial_badge",
+  "home_trial_audience",
+  "home_trial_min_tryons",
+  "home_trial_delay_ms",
+  "home_trial_once_per_session",
+  "home_trial_stop_after_booking",
+];
+
+const HOME_TRIAL_DEFAULTS = {
+  url: "https://www.hairoriginals.com/pages/try-at-home-new",
+  imageWomen: "/home-trial-banner.jpg",
+  ctaLabel: "Book a home trial",
+  subtext: "A stylist brings the hair to you — try it on before you buy.",
+  badge: "At home",
+  minTryons: 1,
+  delayMs: 4500,
+} as const;
+
+/** Coerce a stored value that should be a non-empty string, else the fallback. */
+function settingString(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+/** Coerce a stored value that should be a finite number, else the fallback. */
+function settingNumber(value: unknown, fallback: number): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
+ * The result-screen home trial offer, in one DB round-trip.
+ *
+ * Both creatives come back and the client picks by catalogue gender (see the
+ * note on HomeTrialConfig). The men slot is seeded empty and falls back to the
+ * women artwork here, so the offer never renders with a missing image while a
+ * men's banner is still being designed.
+ *
+ * Every field has a hardcoded fallback, so a missing settings row degrades to
+ * a working offer rather than a broken one — matching the getters above.
+ */
+export async function getHomeTrialConfig(): Promise<HomeTrialConfig> {
+  const s = await getSettings(HOME_TRIAL_KEYS);
+
+  const women = settingString(s.home_trial_image_women, HOME_TRIAL_DEFAULTS.imageWomen);
+  const men = settingString(s.home_trial_image_men, women);
+
+  const audienceRaw = settingString(s.home_trial_audience, "all");
+  const audience: HomeTrialAudience =
+    audienceRaw === "women" || audienceRaw === "men" ? audienceRaw : "all";
+
+  return {
+    enabled: (s.home_trial_enabled as boolean) ?? true,
+    popupEnabled: (s.home_trial_popup_enabled as boolean) ?? true,
+    url: settingString(s.home_trial_url, HOME_TRIAL_DEFAULTS.url),
+    imageWomen: women,
+    imageMen: men,
+    ctaLabel: settingString(s.home_trial_cta_label, HOME_TRIAL_DEFAULTS.ctaLabel),
+    subtext: settingString(s.home_trial_subtext, HOME_TRIAL_DEFAULTS.subtext),
+    // Unlike the others this may legitimately be blank, which hides the pill —
+    // so it can't go through settingString, which treats "" as "use the default".
+    badge: typeof s.home_trial_badge === "string" ? s.home_trial_badge.trim() : HOME_TRIAL_DEFAULTS.badge,
+    audience,
+    // Clamped: a 0 would fire the popup on the very first try-on, and a
+    // negative or absurd delay would either flash over the result or never
+    // arrive. Both are easy mis-entries in a free-text admin field.
+    minTryons: Math.max(1, Math.round(settingNumber(s.home_trial_min_tryons, HOME_TRIAL_DEFAULTS.minTryons))),
+    delayMs: Math.min(60_000, Math.max(0, Math.round(settingNumber(s.home_trial_delay_ms, HOME_TRIAL_DEFAULTS.delayMs)))),
+    // Both default off/on to "show on every result, but stop once she books" —
+    // the popup is the conversion ask, the inline card is the quiet path.
+    oncePerSession: (s.home_trial_once_per_session as boolean) ?? false,
+    stopAfterBooking: (s.home_trial_stop_after_booking as boolean) ?? true,
+  };
 }

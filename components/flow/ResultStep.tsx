@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Download, Heart, Share2, Sparkles, Home, Eye, SlidersHorizontal, ShoppingBag, ArrowRight } from "lucide-react";
+import { Download, Heart, Share2, Sparkles, Home, Eye, SlidersHorizontal, ShoppingBag, ArrowRight, ChevronRight } from "lucide-react";
 import Button from "@/components/ui/Button";
 import StickyActionBar from "@/components/ui/StickyActionBar";
 import BeforeAfterSlider from "@/components/BeforeAfterSlider";
 import { useToast } from "@/components/ui/Toast";
 import { trackAnalyticsEvent } from "@/lib/analytics-client";
 import { cn } from "@/components/ui/cn";
-import type { Product } from "@/lib/types";
+import type { HomeTrialOffer, Product } from "@/lib/types";
 import { discountPercent, formatMoney } from "@/lib/format";
 
 interface ResultStepProps {
@@ -18,6 +18,9 @@ interface ResultStepProps {
   product?: Product | null;
   generationId?: string | null;
   sessionToken?: string | null;
+  /** The home trial offer, or null when this customer isn't in its audience. */
+  homeTrial?: HomeTrialOffer | null;
+  onBookHomeTrial?: () => void;
   onTryAnother: () => void;
   onStartOver: () => void;
 }
@@ -42,6 +45,8 @@ export default function ResultStep({
   product,
   generationId,
   sessionToken,
+  homeTrial,
+  onBookHomeTrial,
   onTryAnother,
   onStartOver,
 }: ResultStepProps) {
@@ -184,6 +189,42 @@ export default function ResultStep({
         <QuickAction label="Share" onClick={handleShare} icon={<Share2 className="h-5 w-5" aria-hidden="true" />} />
         <QuickAction label="Download" onClick={handleDownload} icon={<Download className="h-5 w-5" aria-hidden="true" />} />
       </div>
+
+      {/* Book a home trial.
+          Sits directly under the quick actions, above the product card: the
+          result image is tall, and anything below the product card starts the
+          page below the fold on a phone. Styled as a bordered offer rather
+          than a button so it stands out without competing with the pinned
+          "Shop this look" gradient. */}
+      {homeTrial && onBookHomeTrial && (
+        <button
+          type="button"
+          onClick={onBookHomeTrial}
+          className="mt-6 flex w-full items-center gap-3 rounded-[var(--radius-lg)] border-2 border-brand bg-brand-soft p-3.5 text-left shadow-[var(--shadow-card)] transition-transform active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          <div className="relative h-[68px] w-[68px] shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-brand/25 bg-surface">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={homeTrial.imageUrl} alt="" className="h-full w-full object-cover" />
+          </div>
+          <div className="min-w-0 flex-1">
+            {homeTrial.badge && (
+              <span className="inline-flex items-center rounded-full bg-brand px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+                {homeTrial.badge}
+              </span>
+            )}
+            <p className={cn(
+              "text-[15px] font-extrabold leading-tight text-brand-ink",
+              homeTrial.badge && "mt-1"
+            )}>
+              {homeTrial.ctaLabel}
+            </p>
+            {homeTrial.subtext && (
+              <p className="mt-0.5 line-clamp-2 text-xs text-ink-soft">{homeTrial.subtext}</p>
+            )}
+          </div>
+          <ChevronRight className="h-6 w-6 shrink-0 text-brand" aria-hidden="true" />
+        </button>
+      )}
 
       {/* Shop this look — the product that created this result */}
       {product && (

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Sliders, Save, CheckCircle, Loader2, RefreshCw, Zap, ArrowLeftRight } from "lucide-react";
+import { Sliders, Save, CheckCircle, Loader2, RefreshCw, Zap, ArrowLeftRight, Home, Clock } from "lucide-react";
 import ModelPickerDialog from "@/components/admin/ModelPickerDialog";
+import AdminImageUploader from "@/components/admin/AdminImageUploader";
 import MaintenanceToggle from "@/components/admin/MaintenanceToggle";
 import { DEFAULT_GEMINI_MODEL, getGeminiModelInfo } from "@/lib/gemini-models";
 import { isPasswordProtectedSetting } from "@/lib/settings-keys";
@@ -226,6 +227,218 @@ export default function AIConfigPage() {
               className="shrink-0 w-4 h-4 rounded bg-white/10"
             />
           </label>
+        </div>
+
+        {/* Home Trial Offer */}
+        <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-5">
+          <div className="flex items-center gap-2 pb-3 border-b border-white/8">
+            <Home className="w-4 h-4 text-amber-400" />
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Home Trial Offer</h2>
+          </div>
+
+          <p className="text-[10px] text-white/40 -mt-2">
+            Shown on the result screen after a try-on: a permanent inline card, plus a popup that fires at
+            most once per browser session and only from the customer&apos;s Nth try-on onward.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
+              <div>
+                <p className="text-xs font-semibold text-white">Home Trial Offer Enabled</p>
+                <p className="text-[10px] text-white/40 mt-0.5">
+                  Master switch. Off removes both the inline card and the popup — the result screen goes
+                  back to Shop this look / Try another style only.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={(settings.home_trial_enabled as boolean) ?? true}
+                onChange={(e) => updateField("home_trial_enabled", e.target.checked)}
+                className="shrink-0 w-4 h-4 rounded bg-white/10"
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
+              <div>
+                <p className="text-xs font-semibold text-white">Timed Popup Enabled</p>
+                <p className="text-[10px] text-white/40 mt-0.5">
+                  Off keeps the inline card but stops the sheet from ever auto-opening.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={(settings.home_trial_popup_enabled as boolean) ?? true}
+                onChange={(e) => updateField("home_trial_popup_enabled", e.target.checked)}
+                className="shrink-0 w-4 h-4 rounded bg-white/10"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-white/60">Booking Page URL</label>
+            <input
+              type="url"
+              value={(settings.home_trial_url as string) ?? ""}
+              onChange={(e) => updateField("home_trial_url", e.target.value)}
+              placeholder="https://www.hairoriginals.com/pages/try-at-home-new"
+              className="px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-amber-400/50"
+            />
+            <p className="text-[10px] text-white/30">
+              Opens in a new tab. utm_source / utm_medium / utm_campaign are added automatically unless you
+              put your own here — anything you set wins.
+            </p>
+          </div>
+
+          {/* Two creatives: the banner has to match the catalogue the customer
+              is browsing, or a men's-patch shopper gets a women's extensions ad. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <AdminImageUploader
+              label="Banner — Women"
+              value={(settings.home_trial_image_women as string) ?? ""}
+              onChange={(url) => updateField("home_trial_image_women", url)}
+              placeholder="/home-trial-banner.jpg"
+            />
+            <AdminImageUploader
+              label="Banner — Men (falls back to Women)"
+              value={(settings.home_trial_image_men as string) ?? ""}
+              onChange={(url) => updateField("home_trial_image_men", url)}
+              placeholder="Leave empty to reuse the women banner"
+            />
+          </div>
+          <p className="text-[10px] text-white/30 -mt-3">
+            Square (1:1) artwork. The popup shows it full-bleed with no heading over it, so the pitch has to
+            live in the image itself.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-white/60">CTA Label</label>
+              <input
+                type="text"
+                value={(settings.home_trial_cta_label as string) ?? ""}
+                onChange={(e) => updateField("home_trial_cta_label", e.target.value)}
+                className="px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-white/60">Audience</label>
+              <select
+                value={(settings.home_trial_audience as string) ?? "all"}
+                onChange={(e) => updateField("home_trial_audience", e.target.value)}
+                className="px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50"
+              >
+                <option value="all">Everyone</option>
+                <option value="women">Women only</option>
+                <option value="men">Men only</option>
+              </select>
+              <p className="text-[10px] text-white/30">Matched against the Women / Men catalogue toggle.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-white/60">Supporting Line</label>
+              <input
+                type="text"
+                value={(settings.home_trial_subtext as string) ?? ""}
+                onChange={(e) => updateField("home_trial_subtext", e.target.value)}
+                className="px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-white/60">Card Badge</label>
+              <input
+                type="text"
+                value={(settings.home_trial_badge as string) ?? ""}
+                onChange={(e) => updateField("home_trial_badge", e.target.value)}
+                placeholder="At home"
+                className="w-full md:w-40 px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50"
+              />
+              <p className="text-[10px] text-white/30">Leave empty to hide the pill.</p>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-amber-400/70 -mt-2">
+            The home trial is a paid service — keep &quot;free&quot; out of all three fields above.
+          </p>
+
+          {/* Popup timing & frequency */}
+          <div className="flex flex-col gap-4 pt-1 border-t border-white/8">
+            <div className="flex items-center gap-2 pt-3">
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <h3 className="text-[11px] font-bold text-white/80 uppercase tracking-wider">
+                Popup Timing &amp; Frequency
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-white/60">Popup Delay (seconds)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={((settings.home_trial_delay_ms as number) ?? 4500) / 1000}
+                  onChange={(e) =>
+                    updateField("home_trial_delay_ms", Math.round(Number(e.target.value) * 1000))
+                  }
+                  className="px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50"
+                />
+                <p className="text-[10px] text-white/30">
+                  Measured from the moment the result renders. The timer is dropped if she leaves the
+                  result screen first, so it never opens over the style grid.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-white/60">Show From Try-On #</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={(settings.home_trial_min_tryons as number) ?? 1}
+                  onChange={(e) => updateField("home_trial_min_tryons", Number(e.target.value))}
+                  className="px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400/50"
+                />
+                <p className="text-[10px] text-white/30">
+                  1 pops on every result, including her first. 2 leaves the first result clean.
+                </p>
+              </div>
+            </div>
+
+            <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
+              <div>
+                <p className="text-xs font-semibold text-white">Only Once Per Browser Session</p>
+                <p className="text-[10px] text-white/40 mt-0.5">
+                  On, she sees it once no matter how many looks she tries. Off, it returns after every
+                  result — more reach, more chance of wearing thin.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={(settings.home_trial_once_per_session as boolean) ?? false}
+                onChange={(e) => updateField("home_trial_once_per_session", e.target.checked)}
+                className="shrink-0 w-4 h-4 rounded bg-white/10"
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer">
+              <div>
+                <p className="text-xs font-semibold text-white">Stop After She Books</p>
+                <p className="text-[10px] text-white/40 mt-0.5">
+                  Once she taps through to the booking page, stop auto-opening the popup on that device.
+                  The inline card stays either way, so the path is never taken away.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={(settings.home_trial_stop_after_booking as boolean) ?? true}
+                onChange={(e) => updateField("home_trial_stop_after_booking", e.target.checked)}
+                className="shrink-0 w-4 h-4 rounded bg-white/10"
+              />
+            </label>
+          </div>
         </div>
       </div>
 
