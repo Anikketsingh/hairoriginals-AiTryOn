@@ -39,6 +39,30 @@ export default function TermsPage() {
         </p>
       </Section>
 
+      {/* Carriers read this page during SMS sender registration (Twilio Toll-Free
+          Verification / A2P 10DLC) and expect message frequency, rates, and
+          STOP/HELP handling stated in the terms themselves, not only in the app.
+          Keep in step with components/FunnelGate.tsx and the matching section in
+          the Privacy Policy. */}
+      <Section title="Verification messages (SMS)">
+        <p>
+          When you ask to sign in, we send a single SMS containing a one-time
+          verification code. Message frequency is one message per sign-in attempt. We do
+          not send marketing or promotional SMS. <strong>Message and data rates may
+          apply</strong>, depending on your mobile plan and carrier.
+        </p>
+        <p>
+          Reply <strong>STOP</strong> to any message to stop receiving them, or{" "}
+          <strong>HELP</strong> for help. Because these messages are how we verify your
+          identity, opting out means you will no longer be able to sign in by SMS. For
+          assistance, contact us at <LegalValue value={LEGAL.supportEmail} />.
+        </p>
+        <p>
+          Delivery depends on your mobile carrier and is not guaranteed. Carriers are not
+          liable for delayed or undelivered messages.
+        </p>
+      </Section>
+
       <Section title="Photos you upload">
         <p>You confirm that, for every photo you upload:</p>
         <ul className="list-disc pl-5">

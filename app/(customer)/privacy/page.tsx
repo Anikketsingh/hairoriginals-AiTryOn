@@ -114,6 +114,38 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
+      {/* Mobile carriers audit this page directly during SMS sender registration
+          (Twilio Toll-Free Verification / A2P 10DLC campaign review) and look for
+          an explicit statement that mobile opt-in data is not shared onward. The
+          Meta bullet above — phone numbers hashed and sent for ad measurement —
+          reads as "shares mobile numbers for marketing" without this carve-out,
+          which is a common rejection reason. Keep this section in step with the
+          disclosure in components/FunnelGate.tsx. */}
+      <Section title="Mobile numbers and SMS consent">
+        <p>
+          <strong>
+            We do not share mobile opt-in information or SMS consent with any third
+            party or affiliate for marketing purposes, and we never sell your mobile
+            number.
+          </strong>{" "}
+          The number you give us is used to deliver your one-time sign-in code and to
+          identify your account. It is disclosed only to the SMS provider that carries
+          that message, and only for that purpose.
+        </p>
+        <p>
+          The advertising measurement described above never transmits your number in
+          readable form — it is hashed irreversibly before it leaves our systems, is
+          used only to match existing ad interactions, and is not sent at all unless you
+          accept analytics cookies.
+        </p>
+        <p>
+          You receive one message per sign-in attempt; we do not send marketing SMS.
+          Reply <strong>STOP</strong> to any message to opt out, or <strong>HELP</strong>{" "}
+          for help. Message and data rates may apply. Opting out blocks future
+          verification codes, so you will not be able to sign in by SMS afterwards.
+        </p>
+      </Section>
+
       <Section title="We do not sell your data">
         <p>
           <strong>

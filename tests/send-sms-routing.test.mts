@@ -47,7 +47,7 @@ test("both phone forms resolve identically", () => {
 
 test("resolves target markets", () => {
   const cases: [string, string][] = [
-    ["+919876543210", "IN"], ["+14155550123", "US"], ["+14165550123", "US"],
+    ["+919876543210", "IN"], ["+14155550123", "US"], ["+14165550123", "CA"],
     ["+447700900123", "GB"], ["+4915112345678", "DE"], ["+971501234567", "AE"],
     ["+6591234567", "SG"], ["+60123456789", "MY"], ["+6281234567890", "ID"],
     ["+353871234567", "IE"],
@@ -74,6 +74,60 @@ test("Caribbean +1 territories do NOT resolve as US", () => {
   assert.equal(resolveCountry("+14735550123"), "GD");
   assert.equal(resolveCountry("+12845550123"), "VG");
   assert.equal(resolveCountry("+16495550123"), "TC");
+});
+
+test("Canada resolves as CA, not US", () => {
+  // REGRESSION: resolveCountry used to return "US" for every non-Caribbean +1,
+  // which made "CA" in SMS_ALLOWED_COUNTRIES a value that could never be
+  // produced — dead config that silently allowlisted Canada via "US".
+  assert.equal(resolveCountry("+14165550123"), "CA"); // Toronto
+  assert.equal(resolveCountry("+16045550123"), "CA"); // Vancouver
+  assert.equal(resolveCountry("+15145550123"), "CA"); // Montreal
+  assert.equal(resolveCountry("+14035550123"), "CA"); // Calgary
+  assert.equal(resolveCountry("+19025550123"), "CA"); // Halifax
+  assert.equal(resolveCountry("+18675550123"), "CA"); // Territories
+  assert.equal(resolveCountry("14165550123"), "CA"); // bare-digit form too
+});
+
+test("US still resolves as US", () => {
+  assert.equal(resolveCountry("+12125550123"), "US"); // New York
+  assert.equal(resolveCountry("+14155550123"), "US"); // San Francisco
+  assert.equal(resolveCountry("+13125550123"), "US"); // Chicago
+  assert.equal(resolveCountry("+17135550123"), "US"); // Houston
+  // Unassigned/new NPAs fall through to US rather than failing closed, which is
+  // the deliberate default for the +1 space.
+  assert.equal(resolveCountry("+15555550123"), "US");
+});
+
+test("US and Canada are independently allowlistable", () => {
+  // The whole point of the CA split: launching the US must not silently launch
+  // Canada, whose carriers filter A2P long-code traffic on entirely different
+  // rules and where a healthy US sender can still be blocked.
+  const usOnly = parseAllowlist("IN,US");
+  assert.equal(usOnly.has(resolveCountry("+12125550123")!), true);
+  assert.equal(usOnly.has(resolveCountry("+14165550123")!), false, "Toronto must be blocked by IN,US");
+
+  const caOnly = parseAllowlist("IN,CA");
+  assert.equal(caOnly.has(resolveCountry("+14165550123")!), true);
+  assert.equal(caOnly.has(resolveCountry("+12125550123")!), false, "New York must be blocked by IN,CA");
+
+  const both = parseAllowlist("IN,US,CA");
+  assert.equal(both.has(resolveCountry("+12125550123")!), true);
+  assert.equal(both.has(resolveCountry("+14165550123")!), true);
+  // Widening to North America must NOT admit the Caribbean +1 ranges.
+  assert.equal(both.has(resolveCountry("+18765550123")!), false, "Jamaica must stay blocked");
+});
+
+test("the three NANP sets are disjoint", () => {
+  // A code appearing in both CANADA_AREA_CODES and NON_US_CA_NANP would make
+  // resolution order-dependent, so assert the property through the public API:
+  // no +1 number may resolve to more than one country, and territories win.
+  for (const [phone, iso] of [
+    ["+18765550123", "JM"], ["+16585550123", "JM"], ["+14415550123", "BM"],
+    ["+16495550123", "TC"], ["+14735550123", "GD"],
+  ] as [string, string][]) {
+    assert.equal(resolveCountry(phone), iso, `${phone} must stay a territory, not CA/US`);
+  }
 });
 
 test("fails closed on unresolvable input", () => {

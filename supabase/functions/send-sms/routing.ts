@@ -76,6 +76,31 @@ const NON_US_CA_NANP: Record<string, string> = {
 };
 
 /**
+ * Canadian NANP (+1) area codes.
+ *
+ * Canada and the US share +1, so without this every Canadian number resolves to
+ * "US". That was tolerable while the two shipped as one market, but it makes
+ * "CA" in SMS_ALLOWED_COUNTRIES inert — the value can never be produced, so the
+ * two countries cannot be enabled, disabled, or debugged independently, and
+ * every Canadian send is mislabelled `country=US` in the logs.
+ *
+ * That independence matters because the two are NOT equivalent at the carrier:
+ * Canada has no A2P 10DLC and its carriers filter long-code traffic hard, so a
+ * sender that is healthy in the US can be silently filtered in Canada. Being
+ * able to turn CA off without touching US is the mitigation.
+ *
+ * Source: CNAC/NANPA assignments. Re-check when NANPA opens a new Canadian NPA.
+ */
+const CANADA_AREA_CODES = new Set([
+  "204", "226", "236", "249", "250", "263", "289", "306", "343", "354",
+  "365", "367", "368", "382", "387", "403", "416", "418", "428", "431",
+  "437", "438", "450", "468", "474", "506", "514", "519", "548", "579",
+  "581", "584", "587", "600", "604", "613", "639", "647", "672", "683",
+  "705", "709", "742", "753", "778", "780", "782", "807", "819", "825",
+  "867", "873", "879", "902", "905",
+]);
+
+/**
  * Coerces a phone number to canonical E.164 with a leading `+`.
  *
  * Supabase Auth stores `auth.users.phone` as bare digits ("919876543210") and
@@ -99,10 +124,10 @@ export function normalizeE164(phone: string | undefined | null): string | null {
  * normalizeE164() result; tolerating the bare form here is defence in depth so
  * a missing `+` can never again be misread as "unknown country".
  *
- * Note: US and Canada are not distinguished from each other — both resolve to
- * "US". They route identically (Twilio) and are allowlisted together, so the
- * distinction would carry no behaviour. Caribbean/Pacific NANP territories ARE
- * distinguished, because those must be rejectable independently.
+ * Every NANP (+1) destination is resolved to its own ISO code — Caribbean and
+ * Pacific territories, Canada, and the US alike. All three are separately
+ * allowlistable, which is what lets US and Canada be rolled out, rolled back,
+ * and measured independently despite sharing a calling code.
  */
 export function resolveCountry(e164: string): string | null {
   const digits = (e164 ?? "").replace(/\D/g, "");
@@ -112,7 +137,10 @@ export function resolveCountry(e164: string): string | null {
   if (digits.startsWith("1")) {
     const areaCode = digits.slice(1, 4);
     if (areaCode.length < 3) return null;
-    return NON_US_CA_NANP[areaCode] ?? "US";
+    // Order matters only for legibility — the three sets are disjoint.
+    const territory = NON_US_CA_NANP[areaCode];
+    if (territory) return territory;
+    return CANADA_AREA_CODES.has(areaCode) ? "CA" : "US";
   }
 
   for (const code of SORTED_CODES) {

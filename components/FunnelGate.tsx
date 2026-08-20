@@ -11,6 +11,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import Link from "next/link";
 import { Phone, KeyRound, Sparkles, MessageCircle, CheckCircle, ArrowLeft } from "lucide-react";
 import { supabaseClient } from "@/lib/supabase/client";
 import { trackPixelEvent, newPixelEventId } from "@/lib/meta-pixel";
@@ -191,11 +192,16 @@ function LoginGate({
                   setError(null);
                 }}
                 aria-label="Country"
-                className="min-h-12 w-28 shrink-0 rounded-[var(--radius-md)] border border-line-strong bg-surface px-2.5 text-sm text-ink focus:border-brand focus:outline-none"
+                className="min-h-12 w-32 shrink-0 rounded-[var(--radius-md)] border border-line-strong bg-surface px-2.5 text-sm text-ink focus:border-brand focus:outline-none"
               >
                 {SUPPORTED_COUNTRIES.map((c) => (
+                  // The ISO code is load-bearing, not decoration: the US and
+                  // Canada share +1, so flag-plus-dial renders them as two
+                  // near-identical "+1" rows — and flag emoji don't render as
+                  // flags at all on Windows and several Android builds, which
+                  // would leave them literally indistinguishable.
                   <option key={c.iso} value={c.iso}>
-                    {c.flag} {c.dial}
+                    {c.flag} {c.iso} {c.dial}
                   </option>
                 ))}
               </select>
@@ -224,6 +230,43 @@ function LoginGate({
             )}
             {isTurnstileEnabled && <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />}
             {error && <p className="rounded-[var(--radius-sm)] bg-danger-soft px-3 py-2 text-xs text-danger">{error}</p>}
+            {/* SMS opt-in disclosure.
+             *
+             * Required to launch US/Canada: Twilio's Toll-Free Verification (and
+             * A2P 10DLC campaign review) both demand a screenshot of the opt-in
+             * screen showing consent language, a message-and-data-rates notice,
+             * STOP/HELP instructions, and links to Terms and Privacy. Submitting
+             * without one is a standard rejection, and a rejected resubmission
+             * loses its priority-review slot — so this ships BEFORE the filing.
+             *
+             * Deliberately a static disclosure rather than a checkbox: the user
+             * is requesting a one-time code by their own action, which carriers
+             * accept as consent for user-initiated OTP. A checkbox would cost
+             * conversion on the funnel's highest-intent step for no added
+             * compliance value.
+             *
+             * Rendered for every country, not just +1. The verification
+             * screenshot has to show it unconditionally, and conditional copy
+             * here would mean the screenshot stops matching the live UI the
+             * moment someone changes the picker default.
+             *
+             * Placed directly above the CTA on purpose — reviewers check that
+             * the disclosure is adjacent to the button that triggers the send,
+             * not buried elsewhere on the screen.
+             */}
+            <p className="text-[11px] leading-relaxed text-ink-faint">
+              By tapping Send code you agree to receive a one-time verification code by
+              SMS from HairOriginals. Message and data rates may apply. Reply STOP to opt
+              out, HELP for help. See our{" "}
+              <Link href="/terms" className="underline hover:text-ink-soft">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="underline hover:text-ink-soft">
+                Privacy Policy
+              </Link>
+              .
+            </p>
             <Button
               size="lg"
               fullWidth
