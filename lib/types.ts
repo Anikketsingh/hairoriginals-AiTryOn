@@ -262,5 +262,9 @@ export type HomeTrialSource = "result_popup" | "result_card";
 export const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
 export type AcceptedMimeType = (typeof ACCEPTED_IMAGE_TYPES)[number];
 
-export const MAX_FILE_SIZE_MB = 10;
+// What a customer is allowed to *pick*. It is not what gets uploaded — the
+// browser re-encodes anything large down to UPLOAD_TARGET_BYTES first (see
+// lib/image.ts), so this only has to be generous enough to cover a modern
+// phone's full-resolution photo.
+export const MAX_FILE_SIZE_MB = 20;
 export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;

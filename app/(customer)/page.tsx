@@ -17,7 +17,7 @@ import HomeTrialSheet from "@/components/HomeTrialSheet";
 import { useToast } from "@/components/ui/Toast";
 import { useSession } from "@/hooks/useSession";
 import { useHomeTrial } from "@/hooks/useHomeTrial";
-import { urlToUploadedImage, downscaleImage } from "@/lib/image";
+import { urlToUploadedImage, downscaleImage, compressForUpload } from "@/lib/image";
 // TEMPORARY instrumentation — see lib/debug-timing.ts
 import { createTimer } from "@/lib/debug-timing";
 import { trackAnalyticsEvent } from "@/lib/analytics-client";
@@ -235,11 +235,25 @@ export default function HomePage() {
     const t = createTimer("generate:client"); // TEMPORARY
 
     try {
+      if (!personImage.file) throw new Error("Your photo is missing. Please add it again.");
+      if (!product.file) throw new Error("The style photo is missing. Please pick it again.");
+
+      // Both are already small in the common path (a camera capture, a photo
+      // PhotoStep shrank at pick time, a catalogue image), so this usually
+      // returns the same File. It's the last guard before a body that would
+      // overrun the request-size cap and come back as "Failed to fetch".
+      const [personFile, productFile] = await Promise.all([
+        compressForUpload(personImage.file),
+        compressForUpload(product.file),
+      ]);
+      t.mark(
+        `compress(person ${Math.round(personImage.file.size / 1024)}KB→${Math.round(personFile.size / 1024)}KB, ` +
+          `product ${Math.round(product.file.size / 1024)}KB→${Math.round(productFile.size / 1024)}KB)`
+      );
+
       const formData = new FormData();
-      if (personImage.file) formData.append("personImage", personImage.file);
-      else throw new Error("Your photo is missing. Please add it again.");
-      if (product.file) formData.append("productImage", product.file);
-      else throw new Error("The style photo is missing. Please pick it again.");
+      formData.append("personImage", personFile);
+      formData.append("productImage", productFile);
 
       if (sessionToken) formData.append("sessionToken", sessionToken);
       if (product.productId) formData.append("productId", product.productId);
@@ -251,9 +265,24 @@ export default function HomePage() {
       }
 
       t.mark("build-formdata");
-      const response = await fetch("/api/generate", { method: "POST", body: formData });
-      const data = await response.json();
+      const response = await fetch("/api/generate", { method: "POST", body: formData }).catch(() => {
+        // fetch() only rejects on a transport failure — offline, a dropped
+        // connection, or a body refused at the edge. The bare browser message
+        // ("Failed to fetch") tells the customer nothing.
+        throw new Error("We couldn't reach the server. Check your connection and try again.");
+      });
+      // A 413 from the edge, or a crashed function, answers with HTML rather
+      // than JSON — parsing that blind surfaced as a raw SyntaxError.
+      const data = await response.json().catch(() => null);
       t.mark("post-generate");
+
+      if (!data) {
+        throw new Error(
+          response.status === 413
+            ? "That photo was too large to upload. Please try a smaller one."
+            : "We couldn't create your look. Please try again."
+        );
+      }
 
       if ("gate" in data) {
         const gate = data as { gate: "login" | "agent"; message: string; stage: 1 | 3 };

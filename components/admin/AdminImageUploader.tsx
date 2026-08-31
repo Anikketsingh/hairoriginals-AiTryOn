@@ -14,6 +14,7 @@
 
 import { useRef, useState } from "react";
 import { Loader2, Trash2, UploadCloud } from "lucide-react";
+import { compressForUpload } from "@/lib/image";
 
 interface AdminImageUploaderProps {
   label: string;
@@ -31,20 +32,18 @@ export default function AdminImageUploader({ label, value, onChange, placeholder
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      // Shrunk first — a full-size photo overruns the request-body cap and
+      // comes back as an opaque network failure, not a 4xx we can show.
+      formData.append("file", await compressForUpload(file));
 
       const res = await fetch("/api/admin/upload", {
         method: "POST",
         body: formData,
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        onChange(data.url);
-      } else {
-        const data = await res.json();
-        alert(data.error || "Upload failed");
-      }
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.url) onChange(data.url);
+      else alert(data?.error || "Upload failed");
     } catch (err) {
       console.error("Upload error:", err);
       alert("An error occurred during upload.");

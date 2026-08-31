@@ -28,6 +28,7 @@ import {
   SUGGEST_MATCH_COUNT,
 } from "@/lib/gemini-vision";
 import type { SuggestCandidate } from "@/lib/prompt";
+import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/types";
 import type { Product, SuggestedMatch } from "@/lib/types";
 // TEMPORARY instrumentation — see lib/debug-timing.ts
 import { createTimer } from "@/lib/debug-timing";
@@ -37,7 +38,7 @@ import { createTimer } from "@/lib/debug-timing";
 export const maxDuration = 60;
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = MAX_FILE_SIZE_BYTES;
 const ALLOWED_GENDERS = ["women", "men"] as const;
 
 /**
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
     }
     if (personImage.size > MAX_BYTES) {
       return NextResponse.json(
-        { error: "Photo exceeds 10MB limit. Please use a smaller image." },
+        { error: `Photo exceeds the ${MAX_FILE_SIZE_MB}MB limit. Please use a smaller image.` },
         { status: 400 }
       );
     }

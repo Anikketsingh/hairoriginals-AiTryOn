@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Camera, ImagePlus, RefreshCw, AlertCircle, Info, ArrowRight, Check } from "lucide-react";
+import { Camera, ImagePlus, RefreshCw, AlertCircle, Info, ArrowRight, Check, Loader2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import StickyActionBar from "@/components/ui/StickyActionBar";
 import CameraCapture from "@/components/CameraCapture";
-import { fileToUploadedImage } from "@/lib/image";
+import { compressForUpload, fileToUploadedImage } from "@/lib/image";
 import { validatePortraitPhoto, type ValidationResult } from "@/lib/validation";
 import { trackAnalyticsEvent } from "@/lib/analytics-client";
 import {
@@ -27,6 +27,7 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
   const [showCamera, setShowCamera] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
 
   const process = useCallback(
@@ -41,19 +42,28 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
         setError(`That photo is too big. Please keep it under ${MAX_FILE_SIZE_MB}MB.`);
         return;
       }
+      setPreparing(true);
       try {
-        const img = await fileToUploadedImage(file);
+        // Shrunk *before* it is read into base64, so a 20MB photo is neither
+        // held in memory twice nor posted at a size the request-body cap will
+        // drop at the edge (see compressForUpload).
+        const upload = await compressForUpload(file);
+        const img = await fileToUploadedImage(upload);
         if (img.dataUrl) setValidation(await validatePortraitPhoto(img.dataUrl));
         onSelect(img);
         trackAnalyticsEvent("photo_added", {}, sessionToken);
       } catch {
         setError("Something went wrong reading that photo. Please try again.");
+      } finally {
+        setPreparing(false);
       }
     },
     [onSelect, sessionToken]
   );
 
-  const openFilePicker = () => inputRef.current?.click();
+  const openFilePicker = () => {
+    if (!preparing) inputRef.current?.click();
+  };
 
   const hasWarnings = !!validation && validation.warnings.length > 0;
 
@@ -75,6 +85,12 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
               alt="Your selected photo"
               className="h-full w-full object-cover"
             />
+            {preparing && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface/80 backdrop-blur-sm">
+                <Loader2 className="h-7 w-7 animate-spin text-brand" />
+                <p className="text-sm font-semibold text-ink">Getting your photo ready…</p>
+              </div>
+            )}
           </div>
         ) : (
           <div
@@ -100,10 +116,12 @@ export default function PhotoStep({ personImage, sessionToken, onSelect, onConti
             ].join(" ")}
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft text-brand">
-              <ImagePlus className="h-8 w-8" />
+              {preparing ? <Loader2 className="h-8 w-8 animate-spin" /> : <ImagePlus className="h-8 w-8" />}
             </div>
-            <p className="text-sm font-semibold text-ink">Tap to add a photo</p>
-            <p className="text-xs text-ink-faint">or drag one here</p>
+            <p className="text-sm font-semibold text-ink">
+              {preparing ? "Getting your photo ready…" : "Tap to add a photo"}
+            </p>
+            <p className="text-xs text-ink-faint">{preparing ? "This takes a moment" : "or drag one here"}</p>
           </div>
         )}
 

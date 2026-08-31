@@ -12,6 +12,7 @@ import { getClientIp, checkGenerateRateLimit } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { maintenanceGuard } from "@/lib/maintenance";
 import { readAttributionCookie } from "@/lib/attribution";
+import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/types";
 
 // Shape-only check — real enforcement (is this id actually attached to this
 // product? is it active?) happens in the background job via
@@ -93,16 +94,15 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Validate file sizes ────────────────────────────────────
-    const maxBytes = 10 * 1024 * 1024;
-    if (personImage.size > maxBytes) {
+    if (personImage.size > MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
-        { error: "Person image exceeds 10MB limit. Please use a smaller image." },
+        { error: `Person image exceeds the ${MAX_FILE_SIZE_MB}MB limit. Please use a smaller image.` },
         { status: 400 }
       );
     }
-    if (productImage.size > maxBytes) {
+    if (productImage.size > MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
-        { error: "Product image exceeds 10MB limit. Please use a smaller image." },
+        { error: `Product image exceeds the ${MAX_FILE_SIZE_MB}MB limit. Please use a smaller image.` },
         { status: 400 }
       );
     }
