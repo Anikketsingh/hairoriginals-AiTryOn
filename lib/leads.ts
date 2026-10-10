@@ -33,7 +33,8 @@ export type LeadSource =
   | "talk_to_expert"
   | "manual"
   | "registration"
-  | "guest_tryon";
+  | "guest_tryon"
+  | "kiosk";
 
 interface OwnerRef {
   sessionId: string | null;
@@ -151,6 +152,28 @@ async function getLeadMediaUrls({ sessionId, userId }: OwnerRef): Promise<LeadMe
   }
 }
 
+export interface KioskSummary {
+  id: string;
+  name: string;
+  location: string | null;
+}
+
+/** Standee name/location for the CRM payload, so sales can tell which store a walk-in came from. */
+async function summariseKiosk(kioskId: string | null | undefined): Promise<KioskSummary | null> {
+  if (!kioskId) return null;
+  const { data } = await supabaseAdmin
+    .from("kiosks")
+    .select("id, name, location")
+    .eq("id", kioskId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    name: data.name as string,
+    location: (data.location as string | null) ?? null,
+  };
+}
+
 interface Contact {
   phone: string | null;
   name: string | null;
@@ -193,8 +216,10 @@ export async function ensureLeadForSession(params: {
    * straight through to the CRM — we don't persist it (see lib/attribution.ts).
    */
   attribution?: Attribution | null;
+  /** In-store standee the lead came from (see lib/kiosk-auth.ts). */
+  kioskId?: string | null;
 }): Promise<{ leadId: string | null; created: boolean }> {
-  const { sessionId, userId, source, funnelStage, attribution } = params;
+  const { sessionId, userId, source, funnelStage, attribution, kioskId = null } = params;
   if (!sessionId && !userId) return { leadId: null, created: false };
 
   try {
@@ -261,6 +286,7 @@ export async function ensureLeadForSession(params: {
         generations_count: generationsCount,
         products_tried: productsTried,
         source,
+        kiosk_id: kioskId,
       })
       .select("id")
       .single();
@@ -270,9 +296,10 @@ export async function ensureLeadForSession(params: {
       return { leadId: null, created: false };
     }
 
-    const [products, media] = await Promise.all([
+    const [products, media, kiosk] = await Promise.all([
       summariseProducts(productsTried),
       getLeadMediaUrls({ sessionId, userId }),
+      summariseKiosk(kioskId),
     ]);
     await dispatchIntegrationEvent(
       "lead.created",
@@ -288,6 +315,7 @@ export async function ensureLeadForSession(params: {
         funnelStage,
         generationsCount,
         products,
+        kiosk,
         generatedLookUrl: media.generatedLookUrl,
         originalPhotoUrl: media.originalPhotoUrl,
         looks: media.looks,
@@ -318,7 +346,7 @@ export async function refreshLeadActivity({
   try {
     const { data: lead } = await supabaseAdmin
       .from("leads")
-      .select("id")
+      .select("id, phone, contact_name, kiosk_id")
       .or(ownerFilter({ sessionId, userId }))
       .limit(1)
       .maybeSingle();
@@ -345,10 +373,11 @@ export async function refreshLeadActivity({
       })
       .eq("id", lead.id);
 
-    const [products, media, contact] = await Promise.all([
+    const [products, media, contact, kiosk] = await Promise.all([
       summariseProducts(productsTried),
       getLeadMediaUrls({ sessionId, userId }),
       resolveContact(userId),
+      summariseKiosk(lead.kiosk_id as string | null),
     ]);
     await dispatchIntegrationEvent(
       "lead.updated",
@@ -356,12 +385,15 @@ export async function refreshLeadActivity({
         leadId: lead.id,
         userId,
         sessionId,
-        phone: contact.phone,
-        name: contact.name,
+        // Kiosk visitors have no users row — their number/name were captured
+        // on the standee and stored on the lead itself (attachKioskContact).
+        phone: contact.phone ?? (lead.phone as string | null) ?? null,
+        name: contact.name ?? (lead.contact_name as string | null) ?? null,
         email: contact.email,
         attribution: attribution ?? null,
         generationsCount,
         products,
+        kiosk,
         generatedLookUrl: media.generatedLookUrl,
         originalPhotoUrl: media.originalPhotoUrl,
         looks: media.looks,
@@ -372,4 +404,75 @@ export async function refreshLeadActivity({
   } catch (err) {
     console.error("[leads] refreshLeadActivity error:", err);
   }
+}
+/**
+ * Attach the phone number (and optional name) a walk-up visitor typed on a
+ * standee to their lead, creating the lead first if they haven't completed a
+ * try-on yet. Dispatches `lead.updated` so the CRM receives the contact — the
+ * earlier anonymous kiosk events were skipped there for lacking one.
+ */
+export async function attachKioskContact(params: {
+  sessionId: string;
+  kioskId: string;
+  phone: string;
+  name: string | null;
+}): Promise<{ leadId: string | null }> {
+  const { sessionId, kioskId, phone, name } = params;
+  const { leadId } = await ensureLeadForSession({
+    sessionId,
+    userId: null,
+    source: "kiosk",
+    funnelStage: 0,
+    kioskId,
+  });
+  if (!leadId) return { leadId: null };
+
+  try {
+    await supabaseAdmin
+      .from("leads")
+      .update({
+        phone,
+        contact_name: name,
+        kiosk_id: kioskId,
+        source: "kiosk",
+        last_activity_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", leadId);
+
+    const [generationsCount, productsTried, kiosk] = await Promise.all([
+      getCompletedCount({ sessionId, userId: null }),
+      getProductsTried({ sessionId, userId: null }),
+      summariseKiosk(kioskId),
+    ]);
+    const [products, media] = await Promise.all([
+      summariseProducts(productsTried),
+      getLeadMediaUrls({ sessionId, userId: null }),
+    ]);
+    await dispatchIntegrationEvent(
+      "lead.updated",
+      {
+        leadId,
+        userId: null,
+        sessionId,
+        phone,
+        name,
+        email: null,
+        source: "kiosk",
+        attribution: null,
+        generationsCount,
+        products,
+        kiosk,
+        generatedLookUrl: media.generatedLookUrl,
+        originalPhotoUrl: media.originalPhotoUrl,
+        looks: media.looks,
+        occurredAt: new Date().toISOString(),
+      },
+      "crm"
+    );
+    await recordAnalyticsEvent("kiosk_contact_captured", { kioskId }, sessionId, null);
+  } catch (err) {
+    console.error("[leads] attachKioskContact error:", err);
+  }
+  return { leadId };
 }

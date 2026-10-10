@@ -427,6 +427,11 @@ export default function SalesCRMPage() {
                           <Flame className="w-3 h-3" /> Returned
                         </span>
                       )}
+                      {l.source === "kiosk" && (
+                        <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-semibold uppercase">
+                          Kiosk
+                        </span>
+                      )}
                       {l.source === "guest_tryon" && !l.phone && (
                         <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px] font-semibold uppercase">
                           Guest

@@ -44,11 +44,17 @@ const GENERATE_LIMIT = 20;
 // generate, consumes no credit — so the rate limit is the only thing standing
 // between a script and an unbounded bill.
 const SUGGEST_LIMIT = 6;
+// Kiosk visitor sessions are keyed per standee, not per IP — a standee is a
+// single IP, and a whole store's traffic must not share the web's per-IP cap.
+// Real walk-ups can't start more than a few sessions a minute; this only
+// stops a runaway reset loop from minting credits.
+const KIOSK_SESSIONS_LIMIT = 12;
 const WINDOW_MS = 60_000;
 
 let sessionsLimiter: Ratelimit | null = null;
 let generateLimiter: Ratelimit | null = null;
 let suggestLimiter: Ratelimit | null = null;
+let kioskSessionsLimiter: Ratelimit | null = null;
 
 if (url && token) {
   const redis = new Redis({ url, token });
@@ -66,6 +72,11 @@ if (url && token) {
     redis,
     limiter: Ratelimit.slidingWindow(SUGGEST_LIMIT, "1 m"),
     prefix: "rl:suggest",
+  });
+  kioskSessionsLimiter = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(KIOSK_SESSIONS_LIMIT, "1 m"),
+    prefix: "rl:kiosk-sessions",
   });
 } else {
   console.warn(
@@ -158,4 +169,9 @@ export async function checkGenerateRateLimit(key: string): Promise<boolean> {
 /** Per-session (or per-IP) limit on AI Stylist face scans — 6/minute. */
 export async function checkSuggestRateLimit(key: string): Promise<boolean> {
   return check(suggestLimiter, key, SUGGEST_LIMIT, "suggest");
+}
+
+/** Per-standee limit on new visitor sessions — 12/minute. */
+export async function checkKioskSessionRateLimit(kioskId: string): Promise<boolean> {
+  return check(kioskSessionsLimiter, kioskId, KIOSK_SESSIONS_LIMIT, "kiosk-sessions");
 }

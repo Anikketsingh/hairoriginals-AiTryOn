@@ -107,6 +107,8 @@ export interface CrmLeadBody {
     generatedLookUrl: string | null;
     originalPhotoUrl: string | null;
     looks: LookSummary[];
+    /** In-store standee the lead came from; null for the web app. */
+    kiosk: { id: string; name: string; location: string | null } | null;
     /** Full attribution, un-gated — the safety net if the top-level keys miss. */
     marketing?: Record<string, string>;
     landing?: { url?: string; path?: string; referrer?: string; landedAt?: string };
@@ -124,7 +126,9 @@ function buildNote(payload: Record<string, unknown>): string {
   const looks = (payload.looks as LookSummary[] | undefined) ?? [];
   const products = (payload.products as ProductSummary[] | undefined) ?? [];
   const latest = looks[0]?.productName ?? products[0]?.name ?? null;
-  const note = `${count} try-on(s)${latest ? `, latest: ${latest}` : ""}`;
+  const kiosk = payload.kiosk as { name?: string; location?: string | null } | null | undefined;
+  const where = kiosk?.name ? ` at kiosk ${kiosk.name}${kiosk.location ? ` (${kiosk.location})` : ""}` : "";
+  const note = `${count} try-on(s)${where}${latest ? `, latest: ${latest}` : ""}`;
   return note.slice(0, NOTE_MAX);
 }
 
@@ -212,6 +216,8 @@ export function toCrmLeadBody(payload: Record<string, unknown>, eventType: strin
       generatedLookUrl: (payload.generatedLookUrl as string | null | undefined) ?? null,
       originalPhotoUrl: (payload.originalPhotoUrl as string | null | undefined) ?? null,
       looks: (payload.looks as LookSummary[] | undefined) ?? [],
+      kiosk:
+        (payload.kiosk as { id: string; name: string; location: string | null } | null | undefined) ?? null,
     },
   };
   if (name) body.name = name;

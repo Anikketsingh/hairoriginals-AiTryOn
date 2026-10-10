@@ -12,6 +12,7 @@ import { getClientIp, checkGenerateRateLimit } from "@/lib/rate-limit";
 import { recordAnalyticsEvent } from "@/lib/analytics";
 import { maintenanceGuard } from "@/lib/maintenance";
 import { readAttributionCookie } from "@/lib/attribution";
+import { getKioskContext, countKioskGenerationsToday } from "@/lib/kiosk-auth";
 import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/types";
 
 // Shape-only check — real enforcement (is this id actually attached to this
@@ -110,12 +111,34 @@ export async function POST(request: NextRequest) {
     // ── Funnel gate check ──────────────────────────────────────
     let sessionId: string | null = null;
     let userId: string | null = null;
+    let kioskId: string | null = null;
 
     if (sessionToken) {
       const session = await getSessionByToken(sessionToken);
       if (session) {
         sessionId = session.id;
         userId = session.user_id;
+        kioskId = session.kiosk_id;
+      }
+    }
+
+    // ── Kiosk visitor sessions: only usable from their own standee ──
+    // A kiosk session carries kiosk_visitor credits; binding it to the
+    // standee's device cookie stops its token being replayed from elsewhere.
+    if (kioskId) {
+      const kiosk = await getKioskContext(request);
+      if (!kiosk || kiosk.id !== kioskId) {
+        return NextResponse.json(
+          { error: "This device is not registered as a kiosk.", code: "kiosk_unregistered" },
+          { status: 401 }
+        );
+      }
+      const usedToday = await countKioskGenerationsToday(kiosk.id);
+      if (usedToday >= kiosk.config.dailyGenerationCap) {
+        return NextResponse.json(
+          { error: "This kiosk has reached its try-on limit for today.", code: "kiosk_daily_cap" },
+          { status: 429 }
+        );
       }
     }
 
@@ -184,6 +207,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         credit_id: creditId,
         product_id: productId || null,
+        kiosk_id: kioskId,
         status: "pending",
       })
       .select("id")
@@ -217,6 +241,7 @@ export async function POST(request: NextRequest) {
       // Read here, not in the job: the job runs after this response is sent and
       // has no request of its own to pull the cookie off.
       attribution: readAttributionCookie(request),
+      kioskId,
       demo,
     });
 

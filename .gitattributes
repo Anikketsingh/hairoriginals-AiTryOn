@@ -1,0 +1,3 @@
+kiosk-setup/*.bat text eol=crlf
+kiosk-setup/*.ps1 text eol=crlf
+kiosk-setup/*.vbs text eol=crlf

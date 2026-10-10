@@ -19,7 +19,7 @@ import type { FunnelStage, SessionStatus } from "@/lib/types";
 export async function getSessionByToken(token: string) {
   const { data, error } = await supabaseAdmin
     .from("device_sessions")
-    .select("id, user_id, generations_used, session_token")
+    .select("id, user_id, generations_used, session_token, kiosk_id")
     .eq("session_token", token)
     .single();
 
@@ -29,6 +29,8 @@ export async function getSessionByToken(token: string) {
     user_id: string | null;
     generations_used: number;
     session_token: string;
+    /** Set when this is a walk-up visitor session on an in-store standee. */
+    kiosk_id: string | null;
   };
 }
 
@@ -94,7 +96,13 @@ export async function getFunnelStage(
 export async function grantCredits(
   sessionId: string | null,
   userId: string | null,
-  source: "guest_free" | "registered_bonus" | "agent_grant" | "promo" | "monthly_refresh",
+  source:
+    | "guest_free"
+    | "registered_bonus"
+    | "agent_grant"
+    | "promo"
+    | "monthly_refresh"
+    | "kiosk_visitor",
   amount: number,
   grantedBy?: string
 ): Promise<string | null> {

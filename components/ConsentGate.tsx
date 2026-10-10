@@ -16,6 +16,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import Script from "next/script";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Analytics } from "@vercel/analytics/next";
 import {
   isConsentRequired,
@@ -65,11 +66,17 @@ function getServerSnapshot(): Decision {
 
 export default function ConsentGate() {
   const decision = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const pathname = usePathname();
 
   const decide = useCallback((value: ConsentValue) => {
     storeConsent(value);
     listeners.forEach((listener) => listener());
   }, []);
+
+  // The in-store standee is a shared screen: no ad pixel, and no cookie
+  // banner for the next walk-up to dismiss. Its own consent line sits in
+  // front of the camera instead (components/kiosk).
+  if (pathname?.startsWith("/kiosk")) return null;
 
   return (
     <>

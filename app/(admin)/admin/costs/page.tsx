@@ -71,6 +71,7 @@ export default function AICostsPage() {
     agent_grant: "Agent Manual Grant (Stage 4)",
     promo: "Campaigns & Promos",
     monthly_refresh: "Monthly Recurring",
+    kiosk_visitor: "In-store Kiosk Visitors",
   };
 
   return (

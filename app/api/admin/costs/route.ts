@@ -40,6 +40,7 @@ export async function GET() {
       agent_grant: { granted: 0, consumed: 0 },
       promo: { granted: 0, consumed: 0 },
       monthly_refresh: { granted: 0, consumed: 0 },
+      kiosk_visitor: { granted: 0, consumed: 0 },
     };
 
     creditsData?.forEach((c) => {

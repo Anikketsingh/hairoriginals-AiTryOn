@@ -32,6 +32,7 @@ const LEAD_TYPE_LABEL: Record<string, string> = {
   talk_to_expert: "Talk to Expert",
   manual: "Manual",
   registration: "Registered",
+  kiosk: "In-store Kiosk",
 };
 
 const INTEREST_LABEL: Record<string, string> = {

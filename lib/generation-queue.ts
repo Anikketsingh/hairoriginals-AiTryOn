@@ -57,6 +57,11 @@ export interface ProcessJobParams {
    * flow be exercised without spending Gemini credits. Ignored in production.
    */
   demo?: boolean;
+  /**
+   * Set when the try-on came from an in-store standee (see lib/kiosk-auth.ts),
+   * so the resulting lead is tagged source 'kiosk' with the standee attached.
+   */
+  kioskId?: string | null;
 }
 
 // Hard gate so a stray `demo` flag can never skip the real generation in a
@@ -202,6 +207,7 @@ export async function processGenerationAsync({
   customizationOptionIds,
   attribution,
   demo,
+  kioskId = null,
 }: ProcessJobParams): Promise<void> {
   const startTime = Date.now();
   const t = createTimer("generate:job"); // TEMPORARY — see lib/debug-timing.ts
@@ -366,9 +372,10 @@ export async function processGenerationAsync({
     await ensureLeadForSession({
       sessionId,
       userId,
-      source: userId ? "registration" : "guest_tryon",
+      source: kioskId ? "kiosk" : userId ? "registration" : "guest_tryon",
       funnelStage: userId ? 2 : 0,
       attribution,
+      kioskId,
     });
     await refreshLeadActivity({ sessionId, userId, attribution });
     t.mark("analytics+webhooks+lead");
