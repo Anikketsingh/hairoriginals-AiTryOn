@@ -128,7 +128,12 @@ function buildNote(payload: Record<string, unknown>): string {
   const latest = looks[0]?.productName ?? products[0]?.name ?? null;
   const kiosk = payload.kiosk as { name?: string; location?: string | null } | null | undefined;
   const where = kiosk?.name ? ` at kiosk ${kiosk.name}${kiosk.location ? ` (${kiosk.location})` : ""}` : "";
-  const note = `${count} try-on(s)${where}${latest ? `, latest: ${latest}` : ""}`;
+  const interests = payload.interests as { homeTrial?: boolean; photosSent?: boolean } | undefined;
+  const flags = [
+    interests?.homeTrial ? "wants home trial (standee offer)" : null,
+    interests?.photosSent ? "photos sent" : null,
+  ].filter(Boolean);
+  const note = `${count} try-on(s)${where}${latest ? `, latest: ${latest}` : ""}${flags.length ? ` · ${flags.join(" · ")}` : ""}`;
   return note.slice(0, NOTE_MAX);
 }
 

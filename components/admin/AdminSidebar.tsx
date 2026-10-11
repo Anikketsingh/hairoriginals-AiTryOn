@@ -16,6 +16,7 @@ const NAV_ITEMS: { label: string; href: string; icon: typeof LayoutDashboard; ro
   { label: "AI Costs & Credits", href: "/admin/costs", icon: Coins, roles: ["super_admin"] },
   { label: "AI Configuration", href: "/admin/settings", icon: Sliders, roles: ["super_admin"] },
   { label: "Prompt Library", href: "/admin/prompts", icon: BookOpen, roles: ["super_admin"] },
+  { label: "Standee Leads", href: "/admin/kiosks/leads", icon: UserCheck, roles: ["super_admin", "sales_agent"] },
   { label: "Kiosks", href: "/admin/kiosks", icon: MonitorSmartphone, roles: ["super_admin"] },
   { label: "Team & Access", href: "/admin/team", icon: Users, roles: ["super_admin"] },
 ];

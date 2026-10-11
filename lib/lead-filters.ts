@@ -37,7 +37,8 @@ interface LeadFilterQuery<Q> {
   gte(column: string, value: string): Q;
   lte(column: string, value: string): Q;
   not(column: string, operator: string, value: null): Q;
-  eq(column: string, value: boolean): Q;
+  eq(column: string, value: boolean | string): Q;
+  is(column: string, value: null): Q;
 }
 
 /**
@@ -77,6 +78,21 @@ export function applyLeadFilters<Q extends LeadFilterQuery<Q>>(
   const to = endOfDayIso(params.get("dateTo")?.trim());
   if (to) {
     q = q.lte("created_at", to);
+  }
+
+  // Channel: the Sales CRM shows web leads; standee leads have their own
+  // section (Admin → Standee Leads), which asks for channel=kiosk. "all"
+  // returns both. Default is web so the CRM list and its export agree.
+  const channel = params.get("channel");
+  if (channel === "kiosk") {
+    q = q.not("kiosk_id", "is", null);
+    const kioskId = params.get("kioskId")?.trim();
+    if (kioskId && /^[0-9a-f-]{36}$/i.test(kioskId)) q = q.eq("kiosk_id", kioskId);
+    const interest = params.get("interest");
+    if (interest === "home_trial") q = q.not("home_trial_interest_at", "is", null);
+    else if (interest === "photos") q = q.not("photo_link_sent_at", "is", null);
+  } else if (channel !== "all") {
+    q = q.is("kiosk_id", null);
   }
 
   if (params.get("qualifiedOnly") === "true") {

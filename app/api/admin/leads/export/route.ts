@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
     let leadsQuery = supabaseAdmin
       .from("leads")
       .select(
-        "id, user_id, session_id, phone, funnel_stage_at_creation, generations_count, products_tried, status, source, assigned_agent_id, crm_lead_id, notes, is_read, created_at, updated_at, last_activity_at"
+        "id, user_id, session_id, phone, contact_name, funnel_stage_at_creation, generations_count, products_tried, status, source, assigned_agent_id, crm_lead_id, notes, is_read, created_at, updated_at, last_activity_at, home_trial_interest_at, photo_link_sent_at, kiosks(name)"
       )
       .order(sort.column, { ascending: sort.ascending })
       .order("created_at", { ascending: false })
@@ -367,6 +367,9 @@ export async function GET(request: NextRequest) {
       { header: "Name", key: "name", width: 18 },
       { header: "Email", key: "email", width: 22 },
       { header: "Lead Type", key: "leadType", width: 18 },
+      { header: "Standee", key: "standee", width: 20 },
+      { header: "Home Trial Interest" + TZ_SUFFIX, key: "homeTrialInterest", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
+      { header: "Photos Sent" + TZ_SUFFIX, key: "photosSent", width: 22, style: { numFmt: "yyyy-mm-dd hh:mm" } },
       { header: "Status", key: "status", width: 12 },
       { header: "Read", key: "read", width: 9 },
       { header: "Try-ons (completed)", key: "tryonsCompleted", width: 16 },
@@ -434,9 +437,13 @@ export async function GET(request: NextRequest) {
 
       sheet.addRow({
         phone: sanitizeText(user?.phone ?? lead.phone),
-        name: sanitizeText(user?.name),
+        // Standee visitors have no users row; their name is on the lead.
+        name: sanitizeText(user?.name ?? lead.contact_name),
         email: sanitizeText(user?.email),
         leadType: leadTypeOf(lead.source, !!lead.user_id),
+        standee: sanitizeText((lead.kiosks as { name?: string } | null)?.name ?? null),
+        homeTrialInterest: toDisplayTime(lead.home_trial_interest_at ?? null),
+        photosSent: toDisplayTime(lead.photo_link_sent_at ?? null),
         status: lead.status,
         read: lead.is_read ? "Read" : "Unread",
         tryonsCompleted: completed.length,

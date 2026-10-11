@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { getKioskOfferConfig } from "@/lib/settings";
 import {
   KIOSK_COOKIE,
   countKioskGenerationsToday,
@@ -33,12 +34,13 @@ export async function POST(request: NextRequest) {
     const parsed = bodySchema.safeParse(raw);
     const appVersion = parsed.success ? parsed.data.appVersion ?? null : null;
 
-    const [, generationsToday] = await Promise.all([
+    const [, generationsToday, offer] = await Promise.all([
       supabaseAdmin
         .from("kiosks")
         .update({ last_seen_at: new Date().toISOString(), ...(appVersion ? { app_version: appVersion } : {}) })
         .eq("id", kiosk.id),
       countKioskGenerationsToday(kiosk.id),
+      getKioskOfferConfig(),
     ]);
 
     const response = NextResponse.json({
@@ -46,6 +48,8 @@ export async function POST(request: NextRequest) {
       config: kiosk.config,
       generationsToday,
       capReached: generationsToday >= kiosk.config.dailyGenerationCap,
+      // Shown on the result screen's "send to my phone" card as the lure.
+      offerDiscountPercent: offer.discountPercent,
     });
     // requireKiosk already validated this cookie, so it is present.
     setKioskCookie(response, request.cookies.get(KIOSK_COOKIE)!.value);

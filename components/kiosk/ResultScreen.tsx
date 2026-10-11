@@ -2,9 +2,8 @@
 
 /**
  * Result: the generated look large, with a Before/After slider (reused from
- * the web app) and the next actions. How the customer takes the photo home
- * — and so how we capture their number — is still to be decided; that goes
- * in the marked slot below.
+ * the web app), the "send my looks to my phone" card (the standee's lead
+ * capture — see QrHandoffPanel) and the next actions.
  */
 
 import { useState } from "react";
@@ -12,12 +11,16 @@ import { ArrowRight, Images, Sparkles } from "lucide-react";
 import BeforeAfterSlider from "@/components/BeforeAfterSlider";
 import { cn } from "@/components/ui/cn";
 import { KioskLogo, PrimaryButton, SecondaryButton } from "@/components/kiosk/ui";
+import TakeHomeCard from "@/components/kiosk/TakeHomeCard";
 
 export default function ResultScreen({
   resultUrl,
   photoUrl,
   styleName,
   triesLeft,
+  discountPercent,
+  sentToPhone,
+  onTakeHome,
   onTryAnother,
   onFinish,
 }: {
@@ -25,6 +28,9 @@ export default function ResultScreen({
   photoUrl?: string;
   styleName?: string;
   triesLeft: number;
+  discountPercent: number;
+  sentToPhone: boolean;
+  onTakeHome: () => void;
   onTryAnother: () => void;
   onFinish: () => void;
 }) {
@@ -38,7 +44,7 @@ export default function ResultScreen({
       </h1>
       {styleName && <p className="mt-2 text-[28px] text-ink-soft">{styleName}</p>}
 
-      <div className="relative mt-8 w-[72vw] overflow-hidden rounded-[56px] border-[6px] border-surface bg-surface-sunken shadow-[var(--shadow-pop)]">
+      <div className="relative mt-6 w-[60vw] overflow-hidden rounded-[56px] border-[6px] border-surface bg-surface-sunken shadow-[var(--shadow-pop)]">
         {view === "compare" && photoUrl ? (
           <div className="[&_*]:!rounded-none">
             <BeforeAfterSlider beforeImage={photoUrl} afterImage={resultUrl} />
@@ -72,9 +78,11 @@ export default function ResultScreen({
         </div>
       )}
 
-      {/* ── Take-home / lead capture goes here (decision pending) ── */}
+      <div className="mt-8 w-full">
+        <TakeHomeCard discountPercent={discountPercent} done={sentToPhone} onClick={onTakeHome} />
+      </div>
 
-      <div className="mt-auto flex w-full flex-col gap-5 pb-[4vh] pt-8">
+      <div className="mt-auto flex w-full flex-col gap-5 pb-[4vh] pt-6">
         {triesLeft > 0 ? (
           <SecondaryButton onClick={onTryAnother} className="w-full">
             <Images className="h-10 w-10" /> Try another style

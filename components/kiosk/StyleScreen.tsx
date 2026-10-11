@@ -33,7 +33,8 @@ export default function StyleScreen({
   loading: boolean;
   error: string | null;
   triesLeft: number;
-  onTryOn: (product: Product) => void;
+  /** Second argument true = dev-only demo (no AI call). */
+  onTryOn: (product: Product, demo?: boolean) => void;
   onRetake: () => void;
 }) {
   const [gender, setGender] = useState<Gender>("all");
@@ -177,6 +178,19 @@ export default function StyleScreen({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={selected.image_url} alt="" className="h-full w-full object-cover" />
             </div>
+          )}
+          {/* DEV ONLY: walk the flow without the paid AI call — the server echoes
+              the photo back. Never rendered in a production build, and the
+              server ignores the demo flag outside development anyway. */}
+          {process.env.NODE_ENV !== "production" && (
+            <button
+              type="button"
+              disabled={!selected || loading}
+              onClick={() => selected && onTryOn(selected, true)}
+              className="shrink-0 rounded-full border-2 border-dashed border-amber-500 bg-amber-100 px-7 py-5 text-[22px] font-bold text-amber-900 active:scale-95 disabled:opacity-40"
+            >
+              Demo · skip AI
+            </button>
           )}
           <PrimaryButton className="flex-1" disabled={!selected || loading} onClick={() => selected && onTryOn(selected)}>
             {loading ? <Loader2 className="h-10 w-10 animate-spin" /> : <Sparkles className="h-10 w-10" />}

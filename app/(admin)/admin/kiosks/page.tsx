@@ -41,9 +41,10 @@ interface KioskEntry {
   stats: {
     generationsToday: number;
     generations7d: number;
-    leadsTotal: number;
-    leadsWithPhone: number;
-    qrOpened: number;
+    qrShown: number;
+    qrScanned: number;
+    numbers: number;
+    homeTrial: number;
     cost30dUsd: number;
   };
 }
@@ -367,13 +368,14 @@ export default function KiosksPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                  <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
                     {[
                       ["Try-ons today", k.stats.generationsToday],
                       ["Try-ons 7d", k.stats.generations7d],
-                      ["Leads", k.stats.leadsTotal],
-                      ["With phone", k.stats.leadsWithPhone],
-                      ["QR opened", k.stats.qrOpened],
+                      ["QR shown 30d", k.stats.qrShown],
+                      ["QR scanned", k.stats.qrScanned],
+                      ["Numbers", k.stats.numbers],
+                      ["Home trial", k.stats.homeTrial],
                       ["Cost 30d", `$${k.stats.cost30dUsd.toFixed(2)}`],
                     ].map(([label, value]) => (
                       <div key={label as string} className="rounded-xl bg-white/[0.03] border border-white/5 px-3 py-2">
@@ -428,6 +430,8 @@ export default function KiosksPage() {
           </div>
         )}
       </div>
+
+      <OfferSettingsCard onSaved={flashSuccess} onError={setError} />
     </div>
   );
 }
@@ -556,6 +560,117 @@ function KioskVideo({
           e.target.value = "";
         }}
       />
+    </div>
+  );
+}
+
+const OFFER_FIELDS = [
+  { key: "kiosk_offer_discount_percent", label: "Home-trial discount (%)", type: "number", hint: "Shown on the standee and the phone page. 0 hides the discount." },
+  { key: "kiosk_offer_title", label: "Offer headline", type: "text", hint: "{discount} becomes the % above." },
+  { key: "kiosk_offer_text", label: "Offer details", type: "textarea", hint: "" },
+  { key: "kiosk_offer_coupon_code", label: "Coupon code (optional)", type: "text", hint: "Shown with the offer. Leave empty to hide." },
+  { key: "kiosk_whatsapp_number", label: "WhatsApp number", type: "text", hint: "With country code, e.g. 919876543210. Empty hides WhatsApp." },
+  { key: "kiosk_contact_phone", label: "Call-us number", type: "text", hint: "e.g. +919876543210. Empty hides Call." },
+] as const;
+
+type OfferKey = (typeof OFFER_FIELDS)[number]["key"];
+
+/**
+ * The standee phone page's home-trial offer and contact options — one set for
+ * every standee. Stored in `settings` (rows seeded by the kiosk_handoff
+ * migration) and saved through the generic /api/admin/settings.
+ */
+function OfferSettingsCard({ onSaved, onError }: { onSaved: (msg: string) => void; onError: (msg: string) => void }) {
+  const [values, setValues] = useState<Record<OfferKey, string> | null>(null);
+  const [initial, setInitial] = useState<Record<OfferKey, string> | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((all: Record<string, unknown> | null) => {
+        if (!all) return;
+        const v = Object.fromEntries(
+          OFFER_FIELDS.map((f) => [f.key, all[f.key] === undefined || all[f.key] === null ? "" : String(all[f.key])])
+        ) as Record<OfferKey, string>;
+        setValues(v);
+        setInitial(v);
+      })
+      .catch(() => {});
+  }, []);
+
+  const dirty = values && initial && OFFER_FIELDS.some((f) => values[f.key] !== initial[f.key]);
+
+  const save = async () => {
+    if (!values) return;
+    const discount = Number(values.kiosk_offer_discount_percent);
+    if (!Number.isFinite(discount) || discount < 0 || discount > 90) return onError("Discount must be between 0 and 90.");
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settings: OFFER_FIELDS.map((f) => ({
+            key: f.key,
+            value: f.key === "kiosk_offer_discount_percent" ? Math.round(discount) : values[f.key].trim(),
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setInitial(values);
+      onSaved("Standee offer saved. Standees and phone pages pick it up within a minute.");
+    } catch {
+      onError("Couldn't save the standee offer.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl bg-white/[0.03] border border-white/8 p-4 sm:p-6 flex flex-col gap-5">
+      <div className="flex items-center gap-2 pb-3 border-b border-white/8">
+        <h2 className="text-sm font-bold text-white uppercase tracking-wider">Standee offer &amp; contact</h2>
+        <span className="text-[11px] text-white/40 normal-case">— shown on the customer&apos;s phone after scanning</span>
+      </div>
+      {!values ? (
+        <div className="flex items-center gap-2 text-xs text-white/40">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {OFFER_FIELDS.map((f) => (
+              <label key={f.key} className={`flex flex-col gap-1.5 ${f.type === "textarea" ? "md:col-span-2" : ""}`}>
+                <span className="text-xs font-semibold text-white/60">{f.label}</span>
+                {f.type === "textarea" ? (
+                  <textarea
+                    rows={3}
+                    value={values[f.key]}
+                    onChange={(e) => setValues((v) => v && { ...v, [f.key]: e.target.value })}
+                    className={`${inputClass} resize-none`}
+                  />
+                ) : (
+                  <input
+                    type={f.type}
+                    value={values[f.key]}
+                    onChange={(e) => setValues((v) => v && { ...v, [f.key]: e.target.value })}
+                    className={inputClass}
+                  />
+                )}
+                {f.hint && <span className="text-[11px] text-white/35">{f.hint}</span>}
+              </label>
+            ))}
+          </div>
+          <button
+            disabled={!dirty || saving}
+            onClick={save}
+            className="self-end flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-medium disabled:opacity-30"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save offer
+          </button>
+        </>
+      )}
     </div>
   );
 }

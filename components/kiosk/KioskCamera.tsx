@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Camera, Check, RefreshCw, Sparkles, VideoOff } from "lucide-react";
 import { validatePortraitPhoto } from "@/lib/validation";
+import { urlToUploadedImage } from "@/lib/image";
 import type { UploadedImage } from "@/lib/types";
 import { GlassButton, KioskLogo } from "@/components/kiosk/ui";
 
@@ -260,6 +261,20 @@ export default function KioskCamera({
             <p className="text-[24px] text-white/55">
               Tap to take your photo · It&apos;s only used to create your try-on
             </p>
+            {/* DEV ONLY: skip the webcam with a bundled sample portrait.
+                Never rendered in a production build. */}
+            {process.env.NODE_ENV !== "production" && (
+              <button
+                type="button"
+                onClick={async () => {
+                  stopStream();
+                  onCapture(await urlToUploadedImage("/before.png", "demo-photo.png"));
+                }}
+                className="rounded-full border-2 border-dashed border-amber-400 bg-amber-100 px-8 py-3 text-[22px] font-bold text-amber-900 active:scale-95"
+              >
+                Demo · use sample photo
+              </button>
+            )}
           </>
         )}
       </div>

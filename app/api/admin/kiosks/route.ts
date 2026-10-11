@@ -76,24 +76,30 @@ async function kioskStats(kioskId: string) {
 
   // Per-model head counts rather than fetching rows: exact at any volume,
   // where a row fetch would be truncated by PostgREST's max-rows cap.
-  const [today_, last7d, leadsTotal, leadsWithPhone, qrOpened, ...perModel] = await Promise.all([
-    count(gens().gte("created_at", startToday)),
-    count(gens().gte("created_at", since7d)),
-    count(supabaseAdmin.from("leads").select("id", { count: "exact", head: true }).eq("kiosk_id", kioskId)),
+  const events = (event: string) =>
     count(
       supabaseAdmin
-        .from("leads")
+        .from("kiosk_lead_events")
         .select("id", { count: "exact", head: true })
         .eq("kiosk_id", kioskId)
-        .not("phone", "is", null)
-    ),
-    count(
-      supabaseAdmin
-        .from("result_downloads")
-        .select("token", { count: "exact", head: true })
-        .eq("kiosk_id", kioskId)
-        .not("first_opened_at", "is", null)
-    ),
+        .eq("event", event)
+        .gte("created_at", since30d)
+    );
+  const leads30d = () =>
+    supabaseAdmin
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("kiosk_id", kioskId)
+      .gte("created_at", since30d);
+
+  // Phone-handoff funnel over the last 30 days: QR shown → scanned → number → home trial.
+  const [today_, last7d, qrShown, qrScanned, numbers, homeTrial, ...perModel] = await Promise.all([
+    count(gens().gte("created_at", startToday)),
+    count(gens().gte("created_at", since7d)),
+    events("qr_shown"),
+    events("qr_scanned"),
+    count(leads30d().not("phone", "is", null)),
+    count(leads30d().not("home_trial_interest_at", "is", null)),
     ...GEMINI_MODELS.map((m) =>
       count(gens().eq("status", "completed").eq("model", m.id).gte("created_at", since30d))
     ),
@@ -104,9 +110,10 @@ async function kioskStats(kioskId: string) {
   return {
     generationsToday: today_,
     generations7d: last7d,
-    leadsTotal,
-    leadsWithPhone,
-    qrOpened,
+    qrShown,
+    qrScanned,
+    numbers,
+    homeTrial,
     cost30dUsd: Number(cost30dUsd.toFixed(2)),
   };
 }

@@ -346,7 +346,7 @@ export async function refreshLeadActivity({
   try {
     const { data: lead } = await supabaseAdmin
       .from("leads")
-      .select("id, phone, contact_name, kiosk_id")
+      .select("id, phone, contact_name, kiosk_id, home_trial_interest_at, photo_link_sent_at")
       .or(ownerFilter({ sessionId, userId }))
       .limit(1)
       .maybeSingle();
@@ -394,6 +394,10 @@ export async function refreshLeadActivity({
         generationsCount,
         products,
         kiosk,
+        interests: {
+          homeTrial: Boolean(lead.home_trial_interest_at),
+          photosSent: Boolean(lead.photo_link_sent_at),
+        },
         generatedLookUrl: media.generatedLookUrl,
         originalPhotoUrl: media.originalPhotoUrl,
         looks: media.looks,
@@ -475,4 +479,24 @@ export async function attachKioskContact(params: {
     console.error("[leads] attachKioskContact error:", err);
   }
   return { leadId };
+}
+
+/**
+ * Flag a standee lead's interest (home trial wanted / photos sent) and push
+ * the refreshed lead to the CRM so sales sees it straight away. The first
+ * timestamp wins — repeat taps don't move it.
+ */
+export async function markKioskLeadInterest(params: {
+  leadId: string;
+  sessionId: string;
+  interest: "home_trial" | "photos_sent";
+}): Promise<void> {
+  const column = params.interest === "home_trial" ? "home_trial_interest_at" : "photo_link_sent_at";
+  const now = new Date().toISOString();
+  await supabaseAdmin
+    .from("leads")
+    .update({ [column]: now, last_activity_at: now, updated_at: now })
+    .eq("id", params.leadId)
+    .is(column, null);
+  await refreshLeadActivity({ sessionId: params.sessionId, userId: null });
 }

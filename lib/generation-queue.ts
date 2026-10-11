@@ -58,8 +58,9 @@ export interface ProcessJobParams {
    */
   demo?: boolean;
   /**
-   * Set when the try-on came from an in-store standee (see lib/kiosk-auth.ts),
-   * so the resulting lead is tagged source 'kiosk' with the standee attached.
+   * Set when the try-on came from an in-store standee (see lib/kiosk-auth.ts).
+   * Standee visitors only become leads once they give a number on the phone
+   * page, so no anonymous lead is created for them here.
    */
   kioskId?: string | null;
 }
@@ -369,14 +370,19 @@ export async function processGenerationAsync({
     // is idempotent, so this is a no-op for a signed-in user who already has a
     // lead from /api/auth/complete, and the guest's lead is upgraded in place
     // (user_id + phone attached) when they later sign in.
-    await ensureLeadForSession({
-      sessionId,
-      userId,
-      source: kioskId ? "kiosk" : userId ? "registration" : "guest_tryon",
-      funnelStage: userId ? 2 : 0,
-      attribution,
-      kioskId,
-    });
+    // Standee visitors are NOT made leads here: a standee lead only exists
+    // once they hand over a number on the phone page (attachKioskContact via
+    // /api/handoff/[token]/claim), so Admin → Standee Leads holds real people.
+    // refreshLeadActivity below still updates that lead for later looks.
+    if (!kioskId) {
+      await ensureLeadForSession({
+        sessionId,
+        userId,
+        source: userId ? "registration" : "guest_tryon",
+        funnelStage: userId ? 2 : 0,
+        attribution,
+      });
+    }
     await refreshLeadActivity({ sessionId, userId, attribution });
     t.mark("analytics+webhooks+lead");
     t.log();

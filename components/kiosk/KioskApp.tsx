@@ -26,6 +26,7 @@ import KioskCamera from "@/components/kiosk/KioskCamera";
 import StyleScreen from "@/components/kiosk/StyleScreen";
 import GeneratingScreen from "@/components/kiosk/GeneratingScreen";
 import ResultScreen from "@/components/kiosk/ResultScreen";
+import QrHandoffPanel from "@/components/kiosk/QrHandoffPanel";
 import { PrimaryButton, SecondaryButton, StatusScreen } from "@/components/kiosk/ui";
 import { compressForUpload, urlToUploadedImage } from "@/lib/image";
 import type { Category, Product, UploadedImage } from "@/lib/types";
@@ -51,7 +52,7 @@ type DeviceState =
   | { kind: "booting" }
   | { kind: "unregistered" }
   | { kind: "offline" }
-  | { kind: "ready"; name: string; config: KioskConfig; capReached: boolean };
+  | { kind: "ready"; name: string; config: KioskConfig; capReached: boolean; offerDiscountPercent: number };
 
 type Screen = "attract" | "camera" | "style" | "generating" | "result" | "thanks";
 
@@ -63,6 +64,12 @@ interface Visitor {
   productImage?: UploadedImage;
   generationId?: string;
   resultUrl?: string;
+  /** The visit's phone-handoff link (QR), created the first time it's shown. */
+  handoff?: { token: string; url: string };
+  /** They gave their number on their phone. */
+  sentToPhone?: boolean;
+  /** The "don't leave without your photos" prompt has been shown once. */
+  exitPromptShown?: boolean;
 }
 
 export default function KioskApp() {
@@ -75,6 +82,7 @@ export default function KioskApp() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [staffOpen, setStaffOpen] = useState(false);
+  const [qrMode, setQrMode] = useState<"result" | "exit" | null>(null);
   const visitorsServed = useRef(0);
   // Bumped on every reset so an in-flight poll from the previous visitor
   // can never write into the next visitor's state.
@@ -91,7 +99,13 @@ export default function KioskApp() {
       if (res.status === 401) return setDevice({ kind: "unregistered" });
       if (!res.ok) return setDevice((d) => (d.kind === "ready" ? d : { kind: "offline" }));
       const data = await res.json();
-      setDevice({ kind: "ready", name: data.kiosk.name, config: data.config, capReached: data.capReached });
+      setDevice({
+        kind: "ready",
+        name: data.kiosk.name,
+        config: data.config,
+        capReached: data.capReached,
+        offerDiscountPercent: data.offerDiscountPercent ?? 0,
+      });
     } catch {
       setDevice({ kind: "offline" });
     }
@@ -159,6 +173,7 @@ export default function KioskApp() {
     setVisitor(null);
     setError(null);
     setPreparingStyle(false);
+    setQrMode(null);
     setScreen("attract");
     if (visitorsServed.current >= RELOAD_AFTER_VISITORS) window.location.reload();
   }, []);
@@ -197,6 +212,45 @@ export default function KioskApp() {
     return () => clearTimeout(t);
   }, [screen, resetVisitor]);
 
+  // ── Phone handoff (QR) ─────────────────────────────────────
+  const openQr = useCallback(
+    async (mode: "result" | "exit") => {
+      if (!visitor) return;
+      setQrMode(mode);
+      if (mode === "exit") setVisitor((v) => v && { ...v, exitPromptShown: true });
+      if (visitor.handoff) return;
+      const epoch = visitorEpoch.current;
+      try {
+        const res = await fetch("/api/kiosk/handoff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionToken: visitor.sessionToken }),
+        });
+        const data = await res.json().catch(() => null);
+        if (epoch !== visitorEpoch.current) return;
+        if (res.ok && data?.token) {
+          setVisitor((v) => v && { ...v, handoff: { token: data.token, url: data.url } });
+        } else {
+          setQrMode(null);
+          setError(data?.error ?? "Couldn't create your link. Please try again.");
+        }
+      } catch {
+        if (epoch === visitorEpoch.current) setQrMode(null);
+      }
+    },
+    [visitor]
+  );
+
+  const finishVisit = useCallback(() => {
+    // One last nudge to take the looks home before saying goodbye.
+    if (visitor?.resultUrl && !visitor.sentToPhone && !visitor.exitPromptShown) {
+      void openQr("exit");
+      return;
+    }
+    setQrMode(null);
+    setScreen("thanks");
+  }, [visitor, openQr]);
+
   const idleEnabled = device.kind === "ready" && screen !== "attract" && screen !== "generating";
   const { secondsLeft, poke } = useIdleReset({
     timeoutSeconds: device.kind === "ready" ? device.config.idleTimeoutSeconds : 90,
@@ -206,7 +260,7 @@ export default function KioskApp() {
 
   // ── Try-on round trip ──────────────────────────────────────
   const tryOn = useCallback(
-    async (product: Product) => {
+    async (product: Product, demo = false) => {
       if (!visitor?.photo?.file) return;
       const epoch = visitorEpoch.current;
       const token = visitor.sessionToken;
@@ -231,6 +285,9 @@ export default function KioskApp() {
         form.append("productImage", productFile);
         form.append("sessionToken", token);
         form.append("productId", product.id);
+        // Dev-only: the server skips Gemini and echoes the photo back. Ignored
+        // in production by DEMO_MODE_ALLOWED in lib/generation-queue.ts.
+        if (demo && process.env.NODE_ENV !== "production") form.append("demo", "true");
 
         const res = await fetch("/api/generate", { method: "POST", body: form });
         const data = await res.json().catch(() => null);
@@ -370,16 +427,41 @@ export default function KioskApp() {
               photoUrl={visitor.photo?.dataUrl}
               styleName={visitor.product?.name}
               triesLeft={visitor.triesLeft}
+              discountPercent={device.offerDiscountPercent}
+              sentToPhone={Boolean(visitor.sentToPhone)}
+              onTakeHome={() => void openQr("result")}
               onTryAnother={() => {
                 setError(null);
                 setScreen("style");
               }}
-              onFinish={() => setScreen("thanks")}
+              onFinish={finishVisit}
+            />
+          )}
+
+          {qrMode && visitor && (
+            <QrHandoffPanel
+              url={visitor.handoff?.url ?? null}
+              token={visitor.handoff?.token ?? null}
+              mode={qrMode}
+              discountPercent={device.offerDiscountPercent}
+              onActivity={poke}
+              onClaimed={() => {
+                setVisitor((v) => v && { ...v, sentToPhone: true });
+                setQrMode(null);
+                setScreen("thanks");
+              }}
+              onClose={() => {
+                setQrMode(null);
+                if (qrMode === "exit") setScreen("thanks");
+              }}
             />
           )}
 
           {screen === "thanks" && (
-            <StatusScreen title="Thanks for trying!" body="Visit our experts in store to make your new look real.">
+            <StatusScreen
+              title={visitor?.sentToPhone ? "Your looks are on your phone! 🎉" : "Thanks for trying!"}
+              body="Visit our experts in store to make your new look real."
+            >
               <PrimaryButton onClick={resetVisitor}>Done</PrimaryButton>
             </StatusScreen>
           )}

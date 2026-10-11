@@ -49,12 +49,17 @@ const SUGGEST_LIMIT = 6;
 // Real walk-ups can't start more than a few sessions a minute; this only
 // stops a runaway reset loop from minting credits.
 const KIOSK_SESSIONS_LIMIT = 12;
+// The standee phone page (/s/[token]) is public; its claim/action calls are
+// keyed per token and per IP. Generous for a real person tapping around,
+// tight enough that a script can't spray SMS or junk leads.
+const HANDOFF_LIMIT = 20;
 const WINDOW_MS = 60_000;
 
 let sessionsLimiter: Ratelimit | null = null;
 let generateLimiter: Ratelimit | null = null;
 let suggestLimiter: Ratelimit | null = null;
 let kioskSessionsLimiter: Ratelimit | null = null;
+let handoffLimiter: Ratelimit | null = null;
 
 if (url && token) {
   const redis = new Redis({ url, token });
@@ -77,6 +82,11 @@ if (url && token) {
     redis,
     limiter: Ratelimit.slidingWindow(KIOSK_SESSIONS_LIMIT, "1 m"),
     prefix: "rl:kiosk-sessions",
+  });
+  handoffLimiter = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(HANDOFF_LIMIT, "1 m"),
+    prefix: "rl:handoff",
   });
 } else {
   console.warn(
@@ -174,4 +184,9 @@ export async function checkSuggestRateLimit(key: string): Promise<boolean> {
 /** Per-standee limit on new visitor sessions — 12/minute. */
 export async function checkKioskSessionRateLimit(kioskId: string): Promise<boolean> {
   return check(kioskSessionsLimiter, kioskId, KIOSK_SESSIONS_LIMIT, "kiosk-sessions");
+}
+
+/** Standee phone-page calls — 20/minute per key (call once per token and once per IP). */
+export async function checkHandoffRateLimit(key: string): Promise<boolean> {
+  return check(handoffLimiter, key, HANDOFF_LIMIT, "handoff");
 }

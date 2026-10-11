@@ -58,6 +58,13 @@ export type SettingKey =
   | "home_trial_delay_ms"
   | "home_trial_once_per_session"
   | "home_trial_stop_after_booking"
+  // Standee phone page (/s/[token]) offer + contact — see getKioskOfferConfig().
+  | "kiosk_offer_discount_percent"
+  | "kiosk_offer_title"
+  | "kiosk_offer_text"
+  | "kiosk_offer_coupon_code"
+  | "kiosk_whatsapp_number"
+  | "kiosk_contact_phone"
   // Read and written through lib/maintenance.ts rather than the helpers below:
   // the switch needs a far shorter cache TTL than this module's 60s, and its
   // writes require MAINTENANCE_PASSWORD on top of a super_admin session.
@@ -292,5 +299,53 @@ export async function getHomeTrialConfig(): Promise<HomeTrialConfig> {
     // the popup is the conversion ask, the inline card is the quiet path.
     oncePerSession: (s.home_trial_once_per_session as boolean) ?? false,
     stopAfterBooking: (s.home_trial_stop_after_booking as boolean) ?? true,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────
+// Standee phone-page offer & contact
+// ────────────────────────────────────────────────────────────────
+
+export interface KioskOfferConfig {
+  discountPercent: number;
+  /** Headline with {discount} already substituted. */
+  title: string;
+  text: string;
+  /** Empty string hides the coupon pill. */
+  couponCode: string;
+  /** Digits only, with country code — ready for wa.me/<number>. Empty hides WhatsApp. */
+  whatsappNumber: string;
+  /** Dialable number for tel:. Empty hides "Call us". */
+  contactPhone: string;
+  /** Booking page for "Book online now" (reuses the web home trial URL). */
+  homeTrialUrl: string;
+}
+
+const KIOSK_OFFER_KEYS: SettingKey[] = [
+  "kiosk_offer_discount_percent",
+  "kiosk_offer_title",
+  "kiosk_offer_text",
+  "kiosk_offer_coupon_code",
+  "kiosk_whatsapp_number",
+  "kiosk_contact_phone",
+  "home_trial_url",
+];
+
+/** Everything the standee phone page needs from settings, in one round-trip. */
+export async function getKioskOfferConfig(): Promise<KioskOfferConfig> {
+  const s = await getSettings(KIOSK_OFFER_KEYS);
+  const discountPercent = Math.min(90, Math.max(0, Math.round(settingNumber(s.kiosk_offer_discount_percent, 10))));
+  const title = settingString(s.kiosk_offer_title, "Book a home trial from here — get {discount}% off");
+  return {
+    discountPercent,
+    title: title.replace(/\{discount\}/g, String(discountPercent)),
+    text: settingString(
+      s.kiosk_offer_text,
+      "A HairOriginals stylist brings the hair to your home so you can try it before you buy."
+    ),
+    couponCode: typeof s.kiosk_offer_coupon_code === "string" ? s.kiosk_offer_coupon_code.trim() : "",
+    whatsappNumber: typeof s.kiosk_whatsapp_number === "string" ? s.kiosk_whatsapp_number.replace(/\D/g, "") : "",
+    contactPhone: typeof s.kiosk_contact_phone === "string" ? s.kiosk_contact_phone.replace(/[^\d+]/g, "") : "",
+    homeTrialUrl: settingString(s.home_trial_url, HOME_TRIAL_DEFAULTS.url),
   };
 }
